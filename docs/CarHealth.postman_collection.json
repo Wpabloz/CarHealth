@@ -16,10 +16,6 @@
   },
   "variable": [
     {
-      "key": "baseUrl",
-      "value": "http://127.0.0.1:8000/api"
-    },
-    {
       "key": "token",
       "value": ""
     },
@@ -44,14 +40,20 @@
             ],
             "description": "",
             "url": {
-              "raw": "{{baseUrl}}/auth/registrar",
+              "raw": "http://127.0.0.1:8000/api/auth/registrar",
               "host": [
-                "{{baseUrl}}"
+                "127",
+                "0",
+                "0",
+                "1"
               ],
               "path": [
+                "api",
                 "auth",
                 "registrar"
-              ]
+              ],
+              "protocol": "http",
+              "port": "8000"
             },
             "body": {
               "mode": "raw",
@@ -92,14 +94,20 @@
             ],
             "description": "",
             "url": {
-              "raw": "{{baseUrl}}/auth/login",
+              "raw": "http://127.0.0.1:8000/api/auth/login",
               "host": [
-                "{{baseUrl}}"
+                "127",
+                "0",
+                "0",
+                "1"
               ],
               "path": [
+                "api",
                 "auth",
                 "login"
-              ]
+              ],
+              "protocol": "http",
+              "port": "8000"
             },
             "body": {
               "mode": "raw",
@@ -135,14 +143,20 @@
             "header": [],
             "description": "",
             "url": {
-              "raw": "{{baseUrl}}/auth/me",
+              "raw": "http://127.0.0.1:8000/api/auth/me",
               "host": [
-                "{{baseUrl}}"
+                "127",
+                "0",
+                "0",
+                "1"
               ],
               "path": [
+                "api",
                 "auth",
                 "me"
-              ]
+              ],
+              "protocol": "http",
+              "port": "8000"
             }
           }
         },
@@ -158,14 +172,20 @@
             ],
             "description": "",
             "url": {
-              "raw": "{{baseUrl}}/auth/refresh",
+              "raw": "http://127.0.0.1:8000/api/auth/refresh",
               "host": [
-                "{{baseUrl}}"
+                "127",
+                "0",
+                "0",
+                "1"
               ],
               "path": [
+                "api",
                 "auth",
                 "refresh"
-              ]
+              ],
+              "protocol": "http",
+              "port": "8000"
             },
             "body": {
               "mode": "raw",
@@ -206,13 +226,19 @@
             "header": [],
             "description": "",
             "url": {
-              "raw": "{{baseUrl}}/empresas",
+              "raw": "http://127.0.0.1:8000/api/empresas",
               "host": [
-                "{{baseUrl}}"
+                "127",
+                "0",
+                "0",
+                "1"
               ],
               "path": [
+                "api",
                 "empresas"
-              ]
+              ],
+              "protocol": "http",
+              "port": "8000"
             }
           }
         },
@@ -223,14 +249,20 @@
             "header": [],
             "description": "",
             "url": {
-              "raw": "{{baseUrl}}/empresas/11222333000181",
+              "raw": "http://127.0.0.1:8000/api/empresas/11222333000181",
               "host": [
-                "{{baseUrl}}"
+                "127",
+                "0",
+                "0",
+                "1"
               ],
               "path": [
+                "api",
                 "empresas",
                 "11222333000181"
-              ]
+              ],
+              "protocol": "http",
+              "port": "8000"
             }
           }
         },
@@ -246,14 +278,20 @@
             ],
             "description": "",
             "url": {
-              "raw": "{{baseUrl}}/empresas/11222333000181",
+              "raw": "http://127.0.0.1:8000/api/empresas/11222333000181",
               "host": [
-                "{{baseUrl}}"
+                "127",
+                "0",
+                "0",
+                "1"
               ],
               "path": [
+                "api",
                 "empresas",
                 "11222333000181"
-              ]
+              ],
+              "protocol": "http",
+              "port": "8000"
             },
             "body": {
               "mode": "raw",
@@ -278,13 +316,19 @@
             "header": [],
             "description": "",
             "url": {
-              "raw": "{{baseUrl}}/usuarios",
+              "raw": "http://127.0.0.1:8000/api/usuarios",
               "host": [
-                "{{baseUrl}}"
+                "127",
+                "0",
+                "0",
+                "1"
               ],
               "path": [
+                "api",
                 "usuarios"
-              ]
+              ],
+              "protocol": "http",
+              "port": "8000"
             }
           }
         },
@@ -300,13 +344,19 @@
             ],
             "description": "",
             "url": {
-              "raw": "{{baseUrl}}/usuarios",
+              "raw": "http://127.0.0.1:8000/api/usuarios",
               "host": [
-                "{{baseUrl}}"
+                "127",
+                "0",
+                "0",
+                "1"
               ],
               "path": [
+                "api",
                 "usuarios"
-              ]
+              ],
+              "protocol": "http",
+              "port": "8000"
             },
             "body": {
               "mode": "raw",
@@ -331,13 +381,19 @@
             "header": [],
             "description": "",
             "url": {
-              "raw": "{{baseUrl}}/motoristas",
+              "raw": "http://127.0.0.1:8000/api/motoristas",
               "host": [
-                "{{baseUrl}}"
+                "127",
+                "0",
+                "0",
+                "1"
               ],
               "path": [
+                "api",
                 "motoristas"
-              ]
+              ],
+              "protocol": "http",
+              "port": "8000"
             }
           }
         },
@@ -353,13 +409,19 @@
             ],
             "description": "",
             "url": {
-              "raw": "{{baseUrl}}/motoristas",
+              "raw": "http://127.0.0.1:8000/api/motoristas",
               "host": [
-                "{{baseUrl}}"
+                "127",
+                "0",
+                "0",
+                "1"
               ],
               "path": [
+                "api",
                 "motoristas"
-              ]
+              ],
+              "protocol": "http",
+              "port": "8000"
             },
             "body": {
               "mode": "raw",
@@ -379,14 +441,20 @@
             "header": [],
             "description": "",
             "url": {
-              "raw": "{{baseUrl}}/motoristas/52998224725",
+              "raw": "http://127.0.0.1:8000/api/motoristas/52998224725",
               "host": [
-                "{{baseUrl}}"
+                "127",
+                "0",
+                "0",
+                "1"
               ],
               "path": [
+                "api",
                 "motoristas",
                 "52998224725"
-              ]
+              ],
+              "protocol": "http",
+              "port": "8000"
             }
           }
         },
@@ -402,14 +470,20 @@
             ],
             "description": "",
             "url": {
-              "raw": "{{baseUrl}}/motoristas/52998224725",
+              "raw": "http://127.0.0.1:8000/api/motoristas/52998224725",
               "host": [
-                "{{baseUrl}}"
+                "127",
+                "0",
+                "0",
+                "1"
               ],
               "path": [
+                "api",
                 "motoristas",
                 "52998224725"
-              ]
+              ],
+              "protocol": "http",
+              "port": "8000"
             },
             "body": {
               "mode": "raw",
@@ -434,14 +508,20 @@
             ],
             "description": "",
             "url": {
-              "raw": "{{baseUrl}}/motoristas/52998224725",
+              "raw": "http://127.0.0.1:8000/api/motoristas/52998224725",
               "host": [
-                "{{baseUrl}}"
+                "127",
+                "0",
+                "0",
+                "1"
               ],
               "path": [
+                "api",
                 "motoristas",
                 "52998224725"
-              ]
+              ],
+              "protocol": "http",
+              "port": "8000"
             },
             "body": {
               "mode": "raw",
@@ -466,13 +546,19 @@
             "header": [],
             "description": "",
             "url": {
-              "raw": "{{baseUrl}}/veiculos",
+              "raw": "http://127.0.0.1:8000/api/veiculos",
               "host": [
-                "{{baseUrl}}"
+                "127",
+                "0",
+                "0",
+                "1"
               ],
               "path": [
+                "api",
                 "veiculos"
-              ]
+              ],
+              "protocol": "http",
+              "port": "8000"
             }
           }
         },
@@ -483,11 +569,15 @@
             "header": [],
             "description": "",
             "url": {
-              "raw": "{{baseUrl}}/veiculos?situacao=ATIVO",
+              "raw": "http://127.0.0.1:8000/api/veiculos?situacao=ATIVO",
               "host": [
-                "{{baseUrl}}"
+                "127",
+                "0",
+                "0",
+                "1"
               ],
               "path": [
+                "api",
                 "veiculos"
               ],
               "query": [
@@ -495,7 +585,9 @@
                   "key": "situacao",
                   "value": "ATIVO"
                 }
-              ]
+              ],
+              "protocol": "http",
+              "port": "8000"
             }
           }
         },
@@ -511,13 +603,19 @@
             ],
             "description": "",
             "url": {
-              "raw": "{{baseUrl}}/veiculos",
+              "raw": "http://127.0.0.1:8000/api/veiculos",
               "host": [
-                "{{baseUrl}}"
+                "127",
+                "0",
+                "0",
+                "1"
               ],
               "path": [
+                "api",
                 "veiculos"
-              ]
+              ],
+              "protocol": "http",
+              "port": "8000"
             },
             "body": {
               "mode": "raw",
@@ -537,14 +635,20 @@
             "header": [],
             "description": "",
             "url": {
-              "raw": "{{baseUrl}}/veiculos/QWE1A23",
+              "raw": "http://127.0.0.1:8000/api/veiculos/QWE1A23",
               "host": [
-                "{{baseUrl}}"
+                "127",
+                "0",
+                "0",
+                "1"
               ],
               "path": [
+                "api",
                 "veiculos",
                 "QWE1A23"
-              ]
+              ],
+              "protocol": "http",
+              "port": "8000"
             }
           }
         },
@@ -560,14 +664,20 @@
             ],
             "description": "",
             "url": {
-              "raw": "{{baseUrl}}/veiculos/QWE1A23",
+              "raw": "http://127.0.0.1:8000/api/veiculos/QWE1A23",
               "host": [
-                "{{baseUrl}}"
+                "127",
+                "0",
+                "0",
+                "1"
               ],
               "path": [
+                "api",
                 "veiculos",
                 "QWE1A23"
-              ]
+              ],
+              "protocol": "http",
+              "port": "8000"
             },
             "body": {
               "mode": "raw",
@@ -592,14 +702,20 @@
             ],
             "description": "",
             "url": {
-              "raw": "{{baseUrl}}/veiculos/QWE1A23",
+              "raw": "http://127.0.0.1:8000/api/veiculos/QWE1A23",
               "host": [
-                "{{baseUrl}}"
+                "127",
+                "0",
+                "0",
+                "1"
               ],
               "path": [
+                "api",
                 "veiculos",
                 "QWE1A23"
-              ]
+              ],
+              "protocol": "http",
+              "port": "8000"
             },
             "body": {
               "mode": "raw",
@@ -624,13 +740,19 @@
             "header": [],
             "description": "",
             "url": {
-              "raw": "{{baseUrl}}/planos-manutencao",
+              "raw": "http://127.0.0.1:8000/api/planos-manutencao",
               "host": [
-                "{{baseUrl}}"
+                "127",
+                "0",
+                "0",
+                "1"
               ],
               "path": [
+                "api",
                 "planos-manutencao"
-              ]
+              ],
+              "protocol": "http",
+              "port": "8000"
             }
           }
         },
@@ -646,13 +768,19 @@
             ],
             "description": "",
             "url": {
-              "raw": "{{baseUrl}}/planos-manutencao",
+              "raw": "http://127.0.0.1:8000/api/planos-manutencao",
               "host": [
-                "{{baseUrl}}"
+                "127",
+                "0",
+                "0",
+                "1"
               ],
               "path": [
+                "api",
                 "planos-manutencao"
-              ]
+              ],
+              "protocol": "http",
+              "port": "8000"
             },
             "body": {
               "mode": "raw",
@@ -672,14 +800,20 @@
             "header": [],
             "description": "",
             "url": {
-              "raw": "{{baseUrl}}/planos-manutencao/1",
+              "raw": "http://127.0.0.1:8000/api/planos-manutencao/1",
               "host": [
-                "{{baseUrl}}"
+                "127",
+                "0",
+                "0",
+                "1"
               ],
               "path": [
+                "api",
                 "planos-manutencao",
                 "1"
-              ]
+              ],
+              "protocol": "http",
+              "port": "8000"
             }
           }
         },
@@ -695,14 +829,20 @@
             ],
             "description": "",
             "url": {
-              "raw": "{{baseUrl}}/planos-manutencao/1",
+              "raw": "http://127.0.0.1:8000/api/planos-manutencao/1",
               "host": [
-                "{{baseUrl}}"
+                "127",
+                "0",
+                "0",
+                "1"
               ],
               "path": [
+                "api",
                 "planos-manutencao",
                 "1"
-              ]
+              ],
+              "protocol": "http",
+              "port": "8000"
             },
             "body": {
               "mode": "raw",
@@ -727,14 +867,20 @@
             ],
             "description": "",
             "url": {
-              "raw": "{{baseUrl}}/planos-manutencao/1",
+              "raw": "http://127.0.0.1:8000/api/planos-manutencao/1",
               "host": [
-                "{{baseUrl}}"
+                "127",
+                "0",
+                "0",
+                "1"
               ],
               "path": [
+                "api",
                 "planos-manutencao",
                 "1"
-              ]
+              ],
+              "protocol": "http",
+              "port": "8000"
             },
             "body": {
               "mode": "raw",
@@ -759,13 +905,19 @@
             "header": [],
             "description": "",
             "url": {
-              "raw": "{{baseUrl}}/leituras-odometro",
+              "raw": "http://127.0.0.1:8000/api/leituras-odometro",
               "host": [
-                "{{baseUrl}}"
+                "127",
+                "0",
+                "0",
+                "1"
               ],
               "path": [
+                "api",
                 "leituras-odometro"
-              ]
+              ],
+              "protocol": "http",
+              "port": "8000"
             }
           }
         },
@@ -776,11 +928,15 @@
             "header": [],
             "description": "",
             "url": {
-              "raw": "{{baseUrl}}/leituras-odometro?veiculo=QWE1A23",
+              "raw": "http://127.0.0.1:8000/api/leituras-odometro?veiculo=QWE1A23",
               "host": [
-                "{{baseUrl}}"
+                "127",
+                "0",
+                "0",
+                "1"
               ],
               "path": [
+                "api",
                 "leituras-odometro"
               ],
               "query": [
@@ -788,7 +944,9 @@
                   "key": "veiculo",
                   "value": "QWE1A23"
                 }
-              ]
+              ],
+              "protocol": "http",
+              "port": "8000"
             }
           }
         },
@@ -804,13 +962,19 @@
             ],
             "description": "",
             "url": {
-              "raw": "{{baseUrl}}/leituras-odometro",
+              "raw": "http://127.0.0.1:8000/api/leituras-odometro",
               "host": [
-                "{{baseUrl}}"
+                "127",
+                "0",
+                "0",
+                "1"
               ],
               "path": [
+                "api",
                 "leituras-odometro"
-              ]
+              ],
+              "protocol": "http",
+              "port": "8000"
             },
             "body": {
               "mode": "raw",
@@ -830,14 +994,20 @@
             "header": [],
             "description": "",
             "url": {
-              "raw": "{{baseUrl}}/leituras-odometro/1",
+              "raw": "http://127.0.0.1:8000/api/leituras-odometro/1",
               "host": [
-                "{{baseUrl}}"
+                "127",
+                "0",
+                "0",
+                "1"
               ],
               "path": [
+                "api",
                 "leituras-odometro",
                 "1"
-              ]
+              ],
+              "protocol": "http",
+              "port": "8000"
             }
           }
         },
@@ -853,14 +1023,20 @@
             ],
             "description": "",
             "url": {
-              "raw": "{{baseUrl}}/leituras-odometro/1",
+              "raw": "http://127.0.0.1:8000/api/leituras-odometro/1",
               "host": [
-                "{{baseUrl}}"
+                "127",
+                "0",
+                "0",
+                "1"
               ],
               "path": [
+                "api",
                 "leituras-odometro",
                 "1"
-              ]
+              ],
+              "protocol": "http",
+              "port": "8000"
             },
             "body": {
               "mode": "raw",
@@ -885,14 +1061,20 @@
             ],
             "description": "",
             "url": {
-              "raw": "{{baseUrl}}/leituras-odometro/1",
+              "raw": "http://127.0.0.1:8000/api/leituras-odometro/1",
               "host": [
-                "{{baseUrl}}"
+                "127",
+                "0",
+                "0",
+                "1"
               ],
               "path": [
+                "api",
                 "leituras-odometro",
                 "1"
-              ]
+              ],
+              "protocol": "http",
+              "port": "8000"
             },
             "body": {
               "mode": "raw",
@@ -917,13 +1099,19 @@
             "header": [],
             "description": "",
             "url": {
-              "raw": "{{baseUrl}}/ordens-servico",
+              "raw": "http://127.0.0.1:8000/api/ordens-servico",
               "host": [
-                "{{baseUrl}}"
+                "127",
+                "0",
+                "0",
+                "1"
               ],
               "path": [
+                "api",
                 "ordens-servico"
-              ]
+              ],
+              "protocol": "http",
+              "port": "8000"
             }
           }
         },
@@ -934,11 +1122,15 @@
             "header": [],
             "description": "",
             "url": {
-              "raw": "{{baseUrl}}/ordens-servico?veiculo=QWE1A23",
+              "raw": "http://127.0.0.1:8000/api/ordens-servico?veiculo=QWE1A23",
               "host": [
-                "{{baseUrl}}"
+                "127",
+                "0",
+                "0",
+                "1"
               ],
               "path": [
+                "api",
                 "ordens-servico"
               ],
               "query": [
@@ -946,7 +1138,9 @@
                   "key": "veiculo",
                   "value": "QWE1A23"
                 }
-              ]
+              ],
+              "protocol": "http",
+              "port": "8000"
             }
           }
         },
@@ -962,13 +1156,19 @@
             ],
             "description": "",
             "url": {
-              "raw": "{{baseUrl}}/ordens-servico",
+              "raw": "http://127.0.0.1:8000/api/ordens-servico",
               "host": [
-                "{{baseUrl}}"
+                "127",
+                "0",
+                "0",
+                "1"
               ],
               "path": [
+                "api",
                 "ordens-servico"
-              ]
+              ],
+              "protocol": "http",
+              "port": "8000"
             },
             "body": {
               "mode": "raw",
@@ -988,14 +1188,20 @@
             "header": [],
             "description": "",
             "url": {
-              "raw": "{{baseUrl}}/ordens-servico/1",
+              "raw": "http://127.0.0.1:8000/api/ordens-servico/1",
               "host": [
-                "{{baseUrl}}"
+                "127",
+                "0",
+                "0",
+                "1"
               ],
               "path": [
+                "api",
                 "ordens-servico",
                 "1"
-              ]
+              ],
+              "protocol": "http",
+              "port": "8000"
             }
           }
         },
@@ -1006,15 +1212,21 @@
             "header": [],
             "description": "",
             "url": {
-              "raw": "{{baseUrl}}/ordens-servico/1/aprovar",
+              "raw": "http://127.0.0.1:8000/api/ordens-servico/1/aprovar",
               "host": [
-                "{{baseUrl}}"
+                "127",
+                "0",
+                "0",
+                "1"
               ],
               "path": [
+                "api",
                 "ordens-servico",
                 "1",
                 "aprovar"
-              ]
+              ],
+              "protocol": "http",
+              "port": "8000"
             }
           }
         },
@@ -1030,14 +1242,20 @@
             ],
             "description": "",
             "url": {
-              "raw": "{{baseUrl}}/ordens-servico/1",
+              "raw": "http://127.0.0.1:8000/api/ordens-servico/1",
               "host": [
-                "{{baseUrl}}"
+                "127",
+                "0",
+                "0",
+                "1"
               ],
               "path": [
+                "api",
                 "ordens-servico",
                 "1"
-              ]
+              ],
+              "protocol": "http",
+              "port": "8000"
             },
             "body": {
               "mode": "raw",
@@ -1062,14 +1280,20 @@
             ],
             "description": "",
             "url": {
-              "raw": "{{baseUrl}}/ordens-servico/1",
+              "raw": "http://127.0.0.1:8000/api/ordens-servico/1",
               "host": [
-                "{{baseUrl}}"
+                "127",
+                "0",
+                "0",
+                "1"
               ],
               "path": [
+                "api",
                 "ordens-servico",
                 "1"
-              ]
+              ],
+              "protocol": "http",
+              "port": "8000"
             },
             "body": {
               "mode": "raw",
@@ -1095,14 +1319,20 @@
             "header": [],
             "description": "",
             "url": {
-              "raw": "{{baseUrl}}/ordens-servico/1",
+              "raw": "http://127.0.0.1:8000/api/ordens-servico/1",
               "host": [
-                "{{baseUrl}}"
+                "127",
+                "0",
+                "0",
+                "1"
               ],
               "path": [
+                "api",
                 "ordens-servico",
                 "1"
-              ]
+              ],
+              "protocol": "http",
+              "port": "8000"
             }
           }
         },
@@ -1113,14 +1343,20 @@
             "header": [],
             "description": "",
             "url": {
-              "raw": "{{baseUrl}}/leituras-odometro/1",
+              "raw": "http://127.0.0.1:8000/api/leituras-odometro/1",
               "host": [
-                "{{baseUrl}}"
+                "127",
+                "0",
+                "0",
+                "1"
               ],
               "path": [
+                "api",
                 "leituras-odometro",
                 "1"
-              ]
+              ],
+              "protocol": "http",
+              "port": "8000"
             }
           }
         },
@@ -1131,14 +1367,20 @@
             "header": [],
             "description": "",
             "url": {
-              "raw": "{{baseUrl}}/planos-manutencao/1",
+              "raw": "http://127.0.0.1:8000/api/planos-manutencao/1",
               "host": [
-                "{{baseUrl}}"
+                "127",
+                "0",
+                "0",
+                "1"
               ],
               "path": [
+                "api",
                 "planos-manutencao",
                 "1"
-              ]
+              ],
+              "protocol": "http",
+              "port": "8000"
             }
           }
         },
@@ -1149,14 +1391,20 @@
             "header": [],
             "description": "",
             "url": {
-              "raw": "{{baseUrl}}/veiculos/QWE1A23",
+              "raw": "http://127.0.0.1:8000/api/veiculos/QWE1A23",
               "host": [
-                "{{baseUrl}}"
+                "127",
+                "0",
+                "0",
+                "1"
               ],
               "path": [
+                "api",
                 "veiculos",
                 "QWE1A23"
-              ]
+              ],
+              "protocol": "http",
+              "port": "8000"
             }
           }
         },
@@ -1167,14 +1415,20 @@
             "header": [],
             "description": "",
             "url": {
-              "raw": "{{baseUrl}}/motoristas/52998224725",
+              "raw": "http://127.0.0.1:8000/api/motoristas/52998224725",
               "host": [
-                "{{baseUrl}}"
+                "127",
+                "0",
+                "0",
+                "1"
               ],
               "path": [
+                "api",
                 "motoristas",
                 "52998224725"
-              ]
+              ],
+              "protocol": "http",
+              "port": "8000"
             }
           }
         },
@@ -1185,14 +1439,20 @@
             "header": [],
             "description": "",
             "url": {
-              "raw": "{{baseUrl}}/usuarios/operador@sueli.com",
+              "raw": "http://127.0.0.1:8000/api/usuarios/operador@sueli.com",
               "host": [
-                "{{baseUrl}}"
+                "127",
+                "0",
+                "0",
+                "1"
               ],
               "path": [
+                "api",
                 "usuarios",
                 "operador@sueli.com"
-              ]
+              ],
+              "protocol": "http",
+              "port": "8000"
             }
           }
         }

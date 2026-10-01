@@ -135,6 +135,12 @@ python manage.py migrate
 ```
 Cria as tabelas no PostgreSQL. Para conferir no pgAdmin: *Databases › carhealth › Schemas › public › Tables*.
 
+> **Já criou as tabelas com o script SQL do grupo?** Nesse caso o `migrate` acusa `relation "empresa" already exists`. Rode então:
+> ```powershell
+> python manage.py migrate --fake-initial
+> ```
+> O Django vê que as tabelas já existem, marca como "já feito" (FAKED) e cria só as tabelas internas dele (`django_migrations`, `auth_*`, `django_content_type`). Nenhum dado é apagado.
+
 ```powershell
 python manage.py runserver
 ```
