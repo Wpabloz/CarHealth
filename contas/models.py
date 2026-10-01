@@ -44,7 +44,7 @@ class Admin(AbstractBaseUser):
 
     email = models.EmailField("e-mail", max_length=120, primary_key=True)
     nome = models.CharField(max_length=120)
-    # A senha nunca é salva em texto puro: o Django grava um hash PBKDF2 na coluna "senha"
+    # A senha nunca é salva em texto puro: o Django grava um hash bcrypt na coluna "senha"
     password = models.CharField("senha", max_length=255, db_column="senha")
     perfil = models.CharField(max_length=20, choices=Perfil.choices, default=Perfil.OPERADOR)
     empresa = models.ForeignKey(

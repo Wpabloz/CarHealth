@@ -1,0 +1,1202 @@
+{
+  "info": {
+    "name": "CarHealth API",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "description": "Rode primeiro 'Auth > Registrar' (uma vez) ou 'Auth > Login'. O token é salvo sozinho e enviado em todas as outras chamadas."
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{token}}",
+        "type": "string"
+      }
+    ]
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://127.0.0.1:8000/api"
+    },
+    {
+      "key": "token",
+      "value": ""
+    },
+    {
+      "key": "refresh",
+      "value": ""
+    }
+  ],
+  "item": [
+    {
+      "name": "1. Auth",
+      "item": [
+        {
+          "name": "Registrar (empresa + gestor)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "description": "",
+            "url": {
+              "raw": "{{baseUrl}}/auth/registrar",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "registrar"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"empresa\": {\n    \"cnpj\": \"11222333000181\",\n    \"razao_social\": \"Reboques Sueli LTDA\",\n    \"telefone\": \"83999990000\",\n    \"email\": \"contato@sueli.com\"\n  },\n  \"nome\": \"Sueli Gomes\",\n  \"email\": \"sueli@sueli.com\",\n  \"password\": \"CarHealth#2026\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const r = pm.response.json();",
+                  "if (r.access) { pm.collectionVariables.set('token', r.access); }",
+                  "if (r.refresh) { pm.collectionVariables.set('refresh', r.refresh); }"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Login",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "description": "",
+            "url": {
+              "raw": "{{baseUrl}}/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "login"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"sueli@sueli.com\",\n  \"password\": \"CarHealth#2026\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const r = pm.response.json();",
+                  "if (r.access) { pm.collectionVariables.set('token', r.access); }",
+                  "if (r.refresh) { pm.collectionVariables.set('refresh', r.refresh); }"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Me (testa o token)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "description": "",
+            "url": {
+              "raw": "{{baseUrl}}/auth/me",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "me"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Renovar token",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "description": "",
+            "url": {
+              "raw": "{{baseUrl}}/auth/refresh",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "refresh"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"refresh\": \"{{refresh}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const r = pm.response.json();",
+                  "if (r.access) { pm.collectionVariables.set('token', r.access); }",
+                  "if (r.refresh) { pm.collectionVariables.set('refresh', r.refresh); }"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "2. Empresas",
+      "item": [
+        {
+          "name": "Listar (só a minha)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "description": "",
+            "url": {
+              "raw": "{{baseUrl}}/empresas",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "empresas"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Ver uma",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "description": "",
+            "url": {
+              "raw": "{{baseUrl}}/empresas/11222333000181",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "empresas",
+                "11222333000181"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Editar (PATCH)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "description": "",
+            "url": {
+              "raw": "{{baseUrl}}/empresas/11222333000181",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "empresas",
+                "11222333000181"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"telefone\": \"83933334444\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "3. Usuários (só Gestor)",
+      "item": [
+        {
+          "name": "Listar",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "description": "",
+            "url": {
+              "raw": "{{baseUrl}}/usuarios",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "usuarios"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Cadastrar operador",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "description": "",
+            "url": {
+              "raw": "{{baseUrl}}/usuarios",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "usuarios"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"operador@sueli.com\",\n  \"nome\": \"Carlos\",\n  \"perfil\": \"OPERADOR\",\n  \"password\": \"CarHealth#2026\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "4. Motoristas",
+      "item": [
+        {
+          "name": "Listar 4. motoristas",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "description": "",
+            "url": {
+              "raw": "{{baseUrl}}/motoristas",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "motoristas"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Cadastrar",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "description": "",
+            "url": {
+              "raw": "{{baseUrl}}/motoristas",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "motoristas"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"cpf\": \"52998224725\",\n  \"nome\": \"João da Silva\",\n  \"telefone\": \"83988887777\",\n  \"num_cnh\": \"12345678901\",\n  \"validade_cnh\": \"2027-05-10\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Ver um",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "description": "",
+            "url": {
+              "raw": "{{baseUrl}}/motoristas/52998224725",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "motoristas",
+                "52998224725"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Editar (PUT = todos os campos)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "description": "",
+            "url": {
+              "raw": "{{baseUrl}}/motoristas/52998224725",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "motoristas",
+                "52998224725"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"cpf\": \"52998224725\",\n  \"nome\": \"João da Silva\",\n  \"telefone\": \"83911112222\",\n  \"num_cnh\": \"12345678901\",\n  \"validade_cnh\": \"2027-05-10\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Editar parcial (PATCH)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "description": "",
+            "url": {
+              "raw": "{{baseUrl}}/motoristas/52998224725",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "motoristas",
+                "52998224725"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"telefone\": \"83911112222\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "5. Veículos",
+      "item": [
+        {
+          "name": "Listar 5. veículos",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "description": "",
+            "url": {
+              "raw": "{{baseUrl}}/veiculos",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "veiculos"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Filtrar por situação",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "description": "",
+            "url": {
+              "raw": "{{baseUrl}}/veiculos?situacao=ATIVO",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "veiculos"
+              ],
+              "query": [
+                {
+                  "key": "situacao",
+                  "value": "ATIVO"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Cadastrar",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "description": "",
+            "url": {
+              "raw": "{{baseUrl}}/veiculos",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "veiculos"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"placa\": \"QWE1A23\",\n  \"marca\": \"Mercedes-Benz\",\n  \"modelo\": \"Accelo 1016\",\n  \"ano\": 2021,\n  \"tipo\": \"CAMINHAO\",\n  \"situacao\": \"ATIVO\",\n  \"cpf_motorista\": \"52998224725\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Ver um",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "description": "",
+            "url": {
+              "raw": "{{baseUrl}}/veiculos/QWE1A23",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "veiculos",
+                "QWE1A23"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Editar (PUT = todos os campos)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "description": "",
+            "url": {
+              "raw": "{{baseUrl}}/veiculos/QWE1A23",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "veiculos",
+                "QWE1A23"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"placa\": \"QWE1A23\",\n  \"marca\": \"Mercedes-Benz\",\n  \"modelo\": \"Accelo 1016\",\n  \"ano\": 2021,\n  \"tipo\": \"CAMINHAO\",\n  \"situacao\": \"MANUTENCAO\",\n  \"cpf_motorista\": \"52998224725\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Editar parcial (PATCH)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "description": "",
+            "url": {
+              "raw": "{{baseUrl}}/veiculos/QWE1A23",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "veiculos",
+                "QWE1A23"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"situacao\": \"MANUTENCAO\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "6. Planos de manutenção",
+      "item": [
+        {
+          "name": "Listar 6. planos de manutenção",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "description": "",
+            "url": {
+              "raw": "{{baseUrl}}/planos-manutencao",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "planos-manutencao"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Cadastrar",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "description": "",
+            "url": {
+              "raw": "{{baseUrl}}/planos-manutencao",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "planos-manutencao"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"descricao\": \"Troca de óleo e filtros\",\n  \"tipo_veiculo\": \"CAMINHAO\",\n  \"intervalo_km\": 10000,\n  \"intervalo_meses\": 6\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Ver um",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "description": "",
+            "url": {
+              "raw": "{{baseUrl}}/planos-manutencao/1",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "planos-manutencao",
+                "1"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Editar (PUT = todos os campos)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "description": "",
+            "url": {
+              "raw": "{{baseUrl}}/planos-manutencao/1",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "planos-manutencao",
+                "1"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"descricao\": \"Troca de óleo e filtros\",\n  \"tipo_veiculo\": \"CAMINHAO\",\n  \"intervalo_km\": 15000,\n  \"intervalo_meses\": 6\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Editar parcial (PATCH)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "description": "",
+            "url": {
+              "raw": "{{baseUrl}}/planos-manutencao/1",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "planos-manutencao",
+                "1"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"intervalo_km\": 15000\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "7. Leituras de odômetro",
+      "item": [
+        {
+          "name": "Listar 7. leituras de odômetro",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "description": "",
+            "url": {
+              "raw": "{{baseUrl}}/leituras-odometro",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "leituras-odometro"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Filtrar por veículo",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "description": "",
+            "url": {
+              "raw": "{{baseUrl}}/leituras-odometro?veiculo=QWE1A23",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "leituras-odometro"
+              ],
+              "query": [
+                {
+                  "key": "veiculo",
+                  "value": "QWE1A23"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Cadastrar",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "description": "",
+            "url": {
+              "raw": "{{baseUrl}}/leituras-odometro",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "leituras-odometro"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"placa_veiculo\": \"QWE1A23\",\n  \"data_leitura\": \"2026-09-30\",\n  \"quilometragem\": 45200,\n  \"origem\": \"MANUAL\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Ver um",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "description": "",
+            "url": {
+              "raw": "{{baseUrl}}/leituras-odometro/1",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "leituras-odometro",
+                "1"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Editar (PUT = todos os campos)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "description": "",
+            "url": {
+              "raw": "{{baseUrl}}/leituras-odometro/1",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "leituras-odometro",
+                "1"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"placa_veiculo\": \"QWE1A23\",\n  \"data_leitura\": \"2026-09-30\",\n  \"quilometragem\": 45300,\n  \"origem\": \"MANUAL\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Editar parcial (PATCH)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "description": "",
+            "url": {
+              "raw": "{{baseUrl}}/leituras-odometro/1",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "leituras-odometro",
+                "1"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"quilometragem\": 45300\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "8. Ordens de serviço (manutenções)",
+      "item": [
+        {
+          "name": "Listar",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "description": "",
+            "url": {
+              "raw": "{{baseUrl}}/ordens-servico",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "ordens-servico"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Histórico de um veículo",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "description": "",
+            "url": {
+              "raw": "{{baseUrl}}/ordens-servico?veiculo=QWE1A23",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "ordens-servico"
+              ],
+              "query": [
+                {
+                  "key": "veiculo",
+                  "value": "QWE1A23"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Abrir OS",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "description": "",
+            "url": {
+              "raw": "{{baseUrl}}/ordens-servico",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "ordens-servico"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"placa_veiculo\": \"QWE1A23\",\n  \"id_plano\": 1,\n  \"descricao\": \"Revisão dos 45.000 km\",\n  \"data_abertura\": \"2026-10-01\",\n  \"oficina\": \"Oficina do Zé\",\n  \"quilometragem\": 45200\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Ver uma",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "description": "",
+            "url": {
+              "raw": "{{baseUrl}}/ordens-servico/1",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "ordens-servico",
+                "1"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Aprovar (só Gestor)",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "description": "",
+            "url": {
+              "raw": "{{baseUrl}}/ordens-servico/1/aprovar",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "ordens-servico",
+                "1",
+                "aprovar"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Iniciar execução",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "description": "",
+            "url": {
+              "raw": "{{baseUrl}}/ordens-servico/1",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "ordens-servico",
+                "1"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"EM_EXECUCAO\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Concluir",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "description": "",
+            "url": {
+              "raw": "{{baseUrl}}/ordens-servico/1",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "ordens-servico",
+                "1"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"CONCLUIDA\",\n  \"data_conclusao\": \"2026-10-03\",\n  \"valor\": \"850.00\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "9. Exclusões (rodar por último)",
+      "description": "Apaga primeiro quem depende dos outros (OS → leitura → plano → veículo → motorista).",
+      "item": [
+        {
+          "name": "Excluir — Ordens de serviço (manutenções)",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "description": "",
+            "url": {
+              "raw": "{{baseUrl}}/ordens-servico/1",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "ordens-servico",
+                "1"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Excluir — Leituras de odômetro",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "description": "",
+            "url": {
+              "raw": "{{baseUrl}}/leituras-odometro/1",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "leituras-odometro",
+                "1"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Excluir — Planos de manutenção",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "description": "",
+            "url": {
+              "raw": "{{baseUrl}}/planos-manutencao/1",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "planos-manutencao",
+                "1"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Excluir — Veículos",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "description": "",
+            "url": {
+              "raw": "{{baseUrl}}/veiculos/QWE1A23",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "veiculos",
+                "QWE1A23"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Excluir — Motoristas",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "description": "",
+            "url": {
+              "raw": "{{baseUrl}}/motoristas/52998224725",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "motoristas",
+                "52998224725"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Excluir — Usuários (só Gestor)",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "description": "",
+            "url": {
+              "raw": "{{baseUrl}}/usuarios/operador@sueli.com",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "usuarios",
+                "operador@sueli.com"
+              ]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

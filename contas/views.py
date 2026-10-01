@@ -1,71 +1,98 @@
-from django.contrib import messages
-from django.contrib.auth import login
-from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
-from django.contrib.auth.views import LoginView
-from django.db.models import ProtectedError
-from django.shortcuts import redirect
-from django.urls import reverse_lazy
-from django.views.generic import CreateView, DeleteView, ListView
+"""
+Views = o que acontece quando uma rota é chamada (os "controllers").
 
-from .forms import CadastroEmpresaForm, LoginForm, UsuarioForm
-from .models import Admin
+Fluxo de toda requisição:
+  rota (urls.py) -> autenticação JWT -> permissão -> view -> serializer -> banco
+"""
+from rest_framework import generics, mixins, status, viewsets
+from rest_framework.exceptions import ValidationError
+from rest_framework.permissions import AllowAny
+from rest_framework.response import Response
+from rest_framework_simplejwt.tokens import RefreshToken
 
-
-class Entrar(LoginView):
-    template_name = "contas/login.html"
-    authentication_form = LoginForm
-    redirect_authenticated_user = True
+from .models import Admin, Empresa
+from .permissoes import SomenteGestor
+from .serializers import AdminSerializer, EmpresaSerializer, RegistrarSerializer
 
 
-class CadastroEmpresa(CreateView):
-    template_name = "contas/cadastro.html"
-    form_class = CadastroEmpresaForm
-
-    def form_valid(self, form):
-        empresa = form.save()
-        gestor = empresa.admins.get()
-        login(self.request, gestor, backend="django.contrib.auth.backends.ModelBackend")
-        messages.success(self.request, f"Empresa {empresa} cadastrada. Bem-vindo(a)!")
-        return redirect("frota:dashboard")
+def gerar_tokens(usuario):
+    refresh = RefreshToken.for_user(usuario)
+    return {"access": str(refresh.access_token), "refresh": str(refresh)}
 
 
-class SomenteGestorMixin(LoginRequiredMixin, UserPassesTestMixin):
-    def test_func(self):
-        return self.request.user.is_gestor
+class RegistrarView(generics.GenericAPIView):
+    """POST /api/auth/registrar — cria empresa + usuário gestor e já devolve o token."""
 
+    serializer_class = RegistrarSerializer
+    permission_classes = [AllowAny]  # rota pública
+    authentication_classes = []
 
-class UsuarioLista(SomenteGestorMixin, ListView):
-    template_name = "contas/usuario_lista.html"
-    context_object_name = "usuarios"
-
-    def get_queryset(self):
-        return Admin.objects.filter(empresa=self.request.user.empresa)
-
-
-class UsuarioNovo(SomenteGestorMixin, CreateView):
-    template_name = "form.html"
-    form_class = UsuarioForm
-    success_url = reverse_lazy("contas:usuarios")
-    extra_context = {"titulo": "Novo usuário", "voltar": reverse_lazy("contas:usuarios")}
-
-    def form_valid(self, form):
-        form.instance.empresa = self.request.user.empresa
-        messages.success(self.request, "Usuário criado.")
-        return super().form_valid(form)
-
-
-class UsuarioExcluir(SomenteGestorMixin, DeleteView):
-    template_name = "confirmar_exclusao.html"
-    success_url = reverse_lazy("contas:usuarios")
-
-    def get_queryset(self):
-        return Admin.objects.filter(empresa=self.request.user.empresa).exclude(
-            pk=self.request.user.pk
+    def post(self, request):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        usuario = serializer.save()
+        return Response(
+            {"usuario": AdminSerializer(usuario).data, **gerar_tokens(usuario)},
+            status=status.HTTP_201_CREATED,
         )
 
-    def form_valid(self, form):
-        try:
-            return super().form_valid(form)
-        except ProtectedError:
-            messages.error(self.request, "Usuário possui ordens de serviço e não pode ser excluído.")
-            return redirect(self.success_url)
+
+class MeView(generics.RetrieveAPIView):
+    """GET /api/auth/me — dados do usuário dono do token (serve para testar o token)."""
+
+    serializer_class = AdminSerializer
+
+    def get_object(self):
+        return self.request.user
+
+
+class EmpresaViewSet(
+    mixins.ListModelMixin,
+    mixins.RetrieveModelMixin,
+    mixins.UpdateModelMixin,
+    viewsets.GenericViewSet,
+):
+    """
+    /api/empresas — o usuário só enxerga a própria empresa.
+
+    Pelo modelo de dados, cada ADMIN pertence a uma EMPRESA (admin.cnpj_empresa),
+    por isso a empresa é criada junto com o primeiro usuário em /api/auth/registrar.
+    Aqui: listar, ver e editar. Editar exige perfil GESTOR.
+    """
+
+    queryset = Empresa.objects.all()
+    serializer_class = EmpresaSerializer
+
+    def get_queryset(self):
+        return self.queryset.filter(cnpj=self.request.user.empresa_id)
+
+    def get_permissions(self):
+        if self.action in ("update", "partial_update"):
+            return [SomenteGestor()]
+        return super().get_permissions()
+
+
+class UsuarioViewSet(
+    mixins.ListModelMixin,
+    mixins.RetrieveModelMixin,
+    mixins.CreateModelMixin,
+    mixins.DestroyModelMixin,
+    viewsets.GenericViewSet,
+):
+    """/api/usuarios — o GESTOR cadastra e remove usuários da sua empresa."""
+
+    queryset = Admin.objects.all()
+    serializer_class = AdminSerializer
+    permission_classes = [SomenteGestor]
+    lookup_value_regex = "[^/]+"  # o id é o e-mail, que tem ponto
+
+    def get_queryset(self):
+        return self.queryset.filter(empresa=self.request.user.empresa)
+
+    def perform_create(self, serializer):
+        serializer.save(empresa=self.request.user.empresa)
+
+    def perform_destroy(self, instance):
+        if instance == self.request.user:
+            raise ValidationError("Você não pode excluir o próprio usuário.")
+        instance.delete()

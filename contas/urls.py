@@ -1,15 +1,19 @@
-from django.contrib.auth.views import LogoutView
 from django.urls import path
+from rest_framework.routers import SimpleRouter
+from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 
 from . import views
 
-app_name = "contas"
+# O router cria sozinho as rotas de listar, ver, criar, editar e excluir
+router = SimpleRouter()
+router.trailing_slash = "/?"  # aceita /api/empresas e /api/empresas/
+router.register("empresas", views.EmpresaViewSet, basename="empresa")
+router.register("usuarios", views.UsuarioViewSet, basename="usuario")
 
 urlpatterns = [
-    path("login/", views.Entrar.as_view(), name="login"),
-    path("logout/", LogoutView.as_view(), name="logout"),
-    path("cadastro/", views.CadastroEmpresa.as_view(), name="cadastro"),
-    path("usuarios/", views.UsuarioLista.as_view(), name="usuarios"),
-    path("usuarios/novo/", views.UsuarioNovo.as_view(), name="usuario_novo"),
-    path("usuarios/<str:pk>/excluir/", views.UsuarioExcluir.as_view(), name="usuario_excluir"),
+    path("auth/registrar", views.RegistrarView.as_view(), name="registrar"),
+    path("auth/login", TokenObtainPairView.as_view(), name="login"),      # e-mail + senha -> token
+    path("auth/refresh", TokenRefreshView.as_view(), name="refresh"),     # renova o token
+    path("auth/me", views.MeView.as_view(), name="me"),
+    *router.urls,
 ]
