@@ -6,7 +6,7 @@ Sistema de manutenção de frotas. Este repositório é **só o backend**: uma A
 
 ---
 
-## 1. Como a API funciona (para explicar na apresentação)
+## 1. Como a API funciona
 
 Toda requisição percorre este caminho:
 
@@ -63,7 +63,6 @@ CarHealth/
 │
 └── docs/
     ├── CarHealth.postman_collection.json   # todas as chamadas prontas (Postman/Thunder Client)
-    ├── apresentacao.md                     # roteiro para mostrar ao professor
     ├── capitulo4_banco_de_dados.md         # texto do Dossiê (4.3 a 4.7)
     └── modelo_fisico.sql                   # SQL equivalente às tabelas
 ```
