@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="card shadow-sm"><div class="card-body">
+  <h4>Excluir registro</h4>
+  <p>Tem certeza que deseja excluir <strong>{{ object }}</strong>? Esta ação não pode ser desfeita.</p>
+  <form method="post">{% csrf_token %}
+    <button class="btn btn-danger">Excluir</button>
+    <a class="btn btn-secondary" href="{{ voltar|default:request.META.HTTP_REFERER }}">Cancelar</a>
+  </form>
+</div></div>
+{% endblock %}
