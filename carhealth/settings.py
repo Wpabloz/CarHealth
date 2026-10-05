@@ -102,8 +102,8 @@ SIMPLE_JWT = {
 
 SPECTACULAR_SETTINGS = {
     "TITLE": "CarHealth API",
-    "DESCRIPTION": "API REST do sistema de manutenção de frotas CarHealth.",
-    "VERSION": "0.1.0",
+        "DESCRIPTION": "API do CarHealth para gestão de manutenção de frotas.",
+    "VERSION": "0.2.0",
     "ENUM_NAME_OVERRIDES": {"TipoVeiculoEnum": "frota.models.TipoVeiculo"},
 }
 

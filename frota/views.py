@@ -46,6 +46,7 @@ class DaEmpresaViewSet(viewsets.ModelViewSet):
 
 
 class MotoristaViewSet(DaEmpresaViewSet):
+    """CRUD dos motoristas da empresa: /api/motoristas"""
     queryset = Motorista.objects.all()
     serializer_class = serializers.MotoristaSerializer
 
