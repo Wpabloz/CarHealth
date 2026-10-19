@@ -19,7 +19,8 @@ def tratar_erros(exc, context):
     if isinstance(exc, ProtectedError):
         set_rollback()
         return Response(
-            {"detail": "Este registro possui outros registros vinculados e não pode ser excluído."},
+            {"detail": "Este registro possui histórico vinculado e não pode ser excluído. "
+                       "Para tirá-lo de uso, altere a situacao para INATIVO."},
             status=status.HTTP_409_CONFLICT,
         )
     if isinstance(exc, IntegrityError):

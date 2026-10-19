@@ -2,59 +2,106 @@
 Serializers da frota: convertem os models em JSON (e o JSON de volta em models).
 
 As chaves do JSON usam os nomes das colunas do banco:
-cnpj_empresa, cpf_motorista, placa_veiculo, id_plano, email_emitente, email_aprovador.
+cnpj_empresa, placa_veiculo, id_plano, email_usuario, email_emitente, email_aprovador.
 """
-from django.db.models import Max
+from decimal import Decimal
+
+from django.contrib.auth.password_validation import validate_password
+from django.utils import timezone
 from rest_framework import serializers
+from rest_framework.validators import UniqueValidator
+
+from contas.models import Situacao, Usuario
+from contas.serializers import DaEmpresaField, chave_nao_muda
 
 from .models import LeituraOdometro, Motorista, OrdemServico, PlanoManutencao, Veiculo
 
 
-class DaEmpresaField(serializers.PrimaryKeyRelatedField):
-    """Campo de chave estrangeira que só aceita registros da empresa do usuário logado."""
+class OcultaDoMotorista:
+    """Tira da resposta os campos que o perfil MOTORISTA não pode ver (RN16)."""
 
-    def __init__(self, caminho_empresa="empresa", **kwargs):
-        self.caminho_empresa = caminho_empresa
-        super().__init__(**kwargs)
+    ocultos_do_motorista = ()
 
-    def get_queryset(self):
-        empresa = self.context["request"].user.empresa
-        return super().get_queryset().filter(**{self.caminho_empresa: empresa})
-
-
-def chave_nao_muda(serializer, campo, valor):
-    """No PUT/PATCH, impede trocar a chave primária (CPF, placa)."""
-    if serializer.instance is not None and valor != getattr(serializer.instance, campo):
-        raise serializers.ValidationError("Este campo não pode ser alterado.")
-    return valor
+    def to_representation(self, instancia):
+        dados = super().to_representation(instancia)
+        request = self.context.get("request")
+        if request and getattr(request.user, "is_motorista", False):
+            for campo in self.ocultos_do_motorista:
+                dados.pop(campo, None)
+        return dados
 
 
 class MotoristaSerializer(serializers.ModelSerializer):
+    """
+    Cadastro do motorista. Para liberar o acesso dele ao sistema já no cadastro (RF33),
+    envie também email_acesso e senha_inicial: a conta de perfil MOTORISTA é criada junto.
+    """
+
     cnpj_empresa = serializers.CharField(source="empresa_id", read_only=True)
+    num_cnh = serializers.CharField(
+        max_length=11,
+        validators=[UniqueValidator(Motorista.objects.all(), "Já existe um motorista com esta CNH.")],
+    )
+    cnh_vencida = serializers.SerializerMethodField()  # só sinaliza, não impede a operação (RF11)
+    email_acesso = serializers.EmailField(max_length=120, required=False, write_only=True)
+    senha_inicial = serializers.CharField(required=False, write_only=True, validators=[validate_password])
 
     class Meta:
         model = Motorista
-        fields = ["cpf", "nome", "telefone", "num_cnh", "validade_cnh", "cnpj_empresa"]
+        fields = ["cpf", "nome", "telefone", "num_cnh", "validade_cnh", "situacao", "cnh_vencida",
+                  "email_acesso", "senha_inicial", "cnpj_empresa"]
+
+    def get_cnh_vencida(self, motorista) -> bool:
+        return motorista.validade_cnh < timezone.localdate()
 
     def validate_cpf(self, valor):
         return chave_nao_muda(self, "cpf", valor)
 
+    def validate(self, dados):
+        email, senha = dados.pop("email_acesso", None), dados.pop("senha_inicial", None)
+        self.acesso = None
+        if email or senha:
+            if not (email and senha):
+                raise serializers.ValidationError(
+                    "Para liberar o acesso, informe email_acesso e senha_inicial juntos.")
+            if self.instance is not None and hasattr(self.instance, "usuario"):
+                raise serializers.ValidationError(
+                    {"email_acesso": "Este motorista já tem conta de acesso. Altere-a em /api/usuarios."})
+            email = email.lower()
+            if Usuario.objects.filter(email=email).exists():
+                raise serializers.ValidationError({"email_acesso": "Já existe um usuário com este e-mail."})
+            self.acesso = (email, senha)
+        return dados
+
+    def save(self, **kwargs):
+        motorista = super().save(**kwargs)
+        if self.acesso:
+            email, senha = self.acesso
+            Usuario.objects.create_user(email, senha, perfil=Usuario.Perfil.MOTORISTA,
+                                        empresa=motorista.empresa, motorista=motorista)
+        return motorista
+
+    def to_representation(self, motorista):
+        dados = super().to_representation(motorista)
+        conta = getattr(motorista, "usuario", None)
+        dados["email_acesso"] = conta.email if conta else None
+        return dados
+
 
 class VeiculoSerializer(serializers.ModelSerializer):
     cnpj_empresa = serializers.CharField(source="empresa_id", read_only=True)
-    cpf_motorista = DaEmpresaField(
-        source="motorista", queryset=Motorista.objects.all(), allow_null=True, required=False
-    )
-    km_atual = serializers.IntegerField(read_only=True)  # calculado pela última leitura
+    km_atual = serializers.IntegerField(read_only=True, allow_null=True)  # null = "sem registro"
 
     class Meta:
         model = Veiculo
-        fields = ["placa", "marca", "modelo", "ano", "tipo", "situacao",
-                  "cpf_motorista", "cnpj_empresa", "km_atual"]
+        fields = ["placa", "marca", "modelo", "ano", "tipo", "situacao", "cnpj_empresa", "km_atual"]
 
     def validate_placa(self, valor):
         valor = valor.upper().replace("-", "")
         return chave_nao_muda(self, "placa", valor)
+
+    def validate_tipo(self, valor):
+        return valor.strip().upper()
 
 
 class PlanoManutencaoSerializer(serializers.ModelSerializer):
@@ -63,7 +110,10 @@ class PlanoManutencaoSerializer(serializers.ModelSerializer):
     class Meta:
         model = PlanoManutencao
         fields = ["id_plano", "descricao", "tipo_veiculo", "intervalo_km",
-                  "intervalo_meses", "cnpj_empresa"]
+                  "intervalo_meses", "situacao", "cnpj_empresa"]
+
+    def validate_tipo_veiculo(self, valor):
+        return valor.strip().upper()
 
     def validate(self, dados):
         km = dados.get("intervalo_km", getattr(self.instance, "intervalo_km", None))
@@ -73,59 +123,109 @@ class PlanoManutencaoSerializer(serializers.ModelSerializer):
         return dados
 
 
-class LeituraOdometroSerializer(serializers.ModelSerializer):
+class LeituraOdometroSerializer(OcultaDoMotorista, serializers.ModelSerializer):
+    """
+    Basta informar placa_veiculo e quilometragem: a data é a de hoje e o usuário
+    é quem está logado (RF12). A origem ORDEM_SERVICO só é gerada pelo sistema.
+    """
+
+    Origem = LeituraOdometro.Origem
+
     placa_veiculo = DaEmpresaField(source="veiculo", queryset=Veiculo.objects.all())
+    origem = serializers.ChoiceField(
+        choices=[Origem.MANUAL, Origem.AJUSTE_ODOMETRO], default=Origem.MANUAL,
+        help_text="MANUAL ou AJUSTE_ODOMETRO (troca/zeragem do odômetro, só GESTOR).",
+    )
+    email_usuario = serializers.CharField(source="usuario_id", read_only=True)
+    ocultos_do_motorista = ["email_usuario"]  # o motorista não vê quem lançou cada leitura (RF36)
 
     class Meta:
         model = LeituraOdometro
-        fields = ["codigo", "placa_veiculo", "data_leitura", "quilometragem", "origem"]
+        fields = ["codigo", "placa_veiculo", "data_leitura", "quilometragem", "origem", "email_usuario"]
+        read_only_fields = ["data_leitura"]
 
     def validate(self, dados):
-        """O odômetro nunca volta: a km não pode ser menor que a leitura anterior."""
+        usuario = self.context["request"].user
         veiculo = dados.get("veiculo", getattr(self.instance, "veiculo", None))
-        data = dados.get("data_leitura", getattr(self.instance, "data_leitura", None))
         km = dados.get("quilometragem", getattr(self.instance, "quilometragem", None))
-        anterior = (
-            veiculo.leituras.filter(data_leitura__lte=data)
-            .exclude(pk=getattr(self.instance, "pk", None))
-            .aggregate(maximo=Max("quilometragem"))["maximo"]
-        )
-        if anterior is not None and km < anterior:
-            raise serializers.ValidationError(
-                {"quilometragem": f"Menor que a última leitura registrada ({anterior} km)."}
-            )
+        origem = dados.get("origem", getattr(self.instance, "origem", self.Origem.MANUAL))
+
+        if usuario.is_motorista:
+            if origem == self.Origem.AJUSTE_ODOMETRO:
+                raise serializers.ValidationError(
+                    {"origem": "O ajuste de odômetro só pode ser lançado pelo GESTOR."})
+            if veiculo.situacao != Situacao.ATIVO:
+                raise serializers.ValidationError({"placa_veiculo": "Este veículo está inativo."})
+
+        # O odômetro só avança (RN03): compara com a última leitura, na ordem de registro
+        anteriores = veiculo.leituras.order_by("-codigo")
+        if self.instance is not None:
+            anteriores = anteriores.filter(codigo__lt=self.instance.codigo)
+        anterior = anteriores.first()
+        if anterior and km < anterior.quilometragem and origem != self.Origem.AJUSTE_ODOMETRO:
+            dica = (" Confira o valor ou avise o gestor." if usuario.is_motorista
+                    else " Em troca ou zeragem do odômetro, use a origem AJUSTE_ODOMETRO.")
+            raise serializers.ValidationError({"quilometragem":
+                f"Menor que a última leitura registrada ({anterior.quilometragem} km).{dica}"})
         return dados
 
 
-class OrdemServicoSerializer(serializers.ModelSerializer):
+class OrdemServicoSerializer(OcultaDoMotorista, serializers.ModelSerializer):
+    """
+    Abertura e edição da ordem. O número é gerado na abertura (sequencial por empresa)
+    e o status só muda pelas ações concluir e cancelar (RN11).
+    """
+
     placa_veiculo = DaEmpresaField(source="veiculo", queryset=Veiculo.objects.all())
     id_plano = DaEmpresaField(
-        source="plano", queryset=PlanoManutencao.objects.all(), allow_null=True, required=False
+        source="plano", queryset=PlanoManutencao.objects.all(), allow_null=True, required=False,
+        help_text="Plano executado (ordem preventiva). Deixe vazio em ordem corretiva (RN10).",
     )
     email_emitente = serializers.CharField(source="emitente_id", read_only=True)
     email_aprovador = serializers.CharField(source="aprovador_id", read_only=True)
+    ocultos_do_motorista = ["valor"]  # o motorista não vê os valores pagos (RN16)
 
     class Meta:
         model = OrdemServico
         fields = ["numero", "placa_veiculo", "id_plano", "descricao", "data_abertura",
                   "data_conclusao", "quilometragem", "status", "oficina", "valor",
                   "email_emitente", "email_aprovador"]
+        read_only_fields = ["numero", "data_conclusao", "quilometragem", "status", "valor"]
+        extra_kwargs = {"data_abertura": {"required": False}}  # sem data, vale a de hoje
 
     def validate(self, dados):
-        S = OrdemServico.Status
-        status = dados.get("status", getattr(self.instance, "status", S.ABERTA))
-        abertura = dados.get("data_abertura", getattr(self.instance, "data_abertura", None))
-        conclusao = dados.get("data_conclusao", getattr(self.instance, "data_conclusao", None))
-        aprovada = getattr(self.instance, "aprovador_id", None) is not None
+        if self.instance is not None and self.instance.status != OrdemServico.Status.ABERTA:
+            raise serializers.ValidationError("Só é possível editar uma ordem ABERTA.")
+        if self.instance is None:
+            dados.setdefault("data_abertura", timezone.localdate())
 
-        if status == S.APROVADA and not aprovada:
-            raise serializers.ValidationError(
-                {"status": "Para aprovar use POST /api/ordens-servico/{numero}/aprovar."})
-        if status in (S.EM_EXECUCAO, S.CONCLUIDA) and not aprovada:
-            raise serializers.ValidationError({"status": "A OS precisa ser aprovada antes."})
-        if status == S.CONCLUIDA and not conclusao:
-            raise serializers.ValidationError({"data_conclusao": "Informe a data de conclusão."})
-        if conclusao and abertura and conclusao < abertura:
+        veiculo = dados.get("veiculo", getattr(self.instance, "veiculo", None))
+        plano = dados["plano"] if "plano" in dados else getattr(self.instance, "plano", None)
+        if plano is not None:
+            if "plano" in dados and plano.situacao != Situacao.ATIVO:
+                raise serializers.ValidationError({"id_plano": "Este plano está inativo."})
+            if plano.tipo_veiculo != veiculo.tipo:
+                raise serializers.ValidationError({"id_plano":
+                    f"O plano é para veículos do tipo {plano.tipo_veiculo}, "
+                    f"e o veículo {veiculo.placa} é do tipo {veiculo.tipo}."})
+        return dados
+
+
+class ConclusaoSerializer(serializers.Serializer):
+    """POST /concluir: data, quilometragem e valor são obrigatórios (RN11, RF26)."""
+
+    data_conclusao = serializers.DateField()
+    quilometragem = serializers.IntegerField(min_value=0)
+    valor = serializers.DecimalField(max_digits=10, decimal_places=2, min_value=Decimal("0"))
+    oficina = serializers.CharField(max_length=120, required=False, allow_blank=True, allow_null=True)
+
+    def validate(self, dados):
+        ordem = self.context["ordem"]
+        if dados["data_conclusao"] < ordem.data_abertura:
             raise serializers.ValidationError(
                 {"data_conclusao": "A conclusão não pode ser antes da abertura."})
+        ultima = ordem.veiculo.ultima_leitura
+        if ultima and dados["quilometragem"] < ultima.quilometragem:
+            raise serializers.ValidationError({"quilometragem":
+                f"Menor que a última leitura registrada ({ultima.quilometragem} km)."})
         return dados

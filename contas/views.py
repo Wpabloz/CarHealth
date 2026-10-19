@@ -10,9 +10,9 @@ from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework_simplejwt.tokens import RefreshToken
 
-from .models import Admin, Empresa
+from .models import Empresa, Situacao, Usuario
 from .permissoes import SomenteGestor
-from .serializers import AdminSerializer, EmpresaSerializer, RegistrarSerializer
+from .serializers import EmpresaSerializer, RegistrarSerializer, UsuarioSerializer
 
 
 def gerar_tokens(usuario):
@@ -32,15 +32,15 @@ class RegistrarView(generics.GenericAPIView):
         serializer.is_valid(raise_exception=True)
         usuario = serializer.save()
         return Response(
-            {"usuario": AdminSerializer(usuario).data, **gerar_tokens(usuario)},
+            {"usuario": UsuarioSerializer(usuario).data, **gerar_tokens(usuario)},
             status=status.HTTP_201_CREATED,
         )
 
 
 class MeView(generics.RetrieveAPIView):
-    """GET /api/auth/me — dados do usuário dono do token (serve para testar o token)."""
+    """GET /api/auth/me — dados do usuário dono do token, gestor ou motorista (RF38)."""
 
-    serializer_class = AdminSerializer
+    serializer_class = UsuarioSerializer
 
     def get_object(self):
         return self.request.user
@@ -55,7 +55,7 @@ class EmpresaViewSet(
     """
     /api/empresas — o usuário só enxerga a própria empresa.
 
-    Pelo modelo de dados, cada ADMIN pertence a uma EMPRESA (admin.cnpj_empresa),
+    Pelo modelo de dados, cada USUARIO pertence a uma EMPRESA (usuario.cnpj_empresa),
     por isso a empresa é criada junto com o primeiro usuário em /api/auth/registrar.
     Aqui: listar, ver e editar. Editar exige perfil GESTOR.
     """
@@ -72,17 +72,14 @@ class EmpresaViewSet(
         return super().get_permissions()
 
 
-class UsuarioViewSet(
-    mixins.ListModelMixin,
-    mixins.RetrieveModelMixin,
-    mixins.CreateModelMixin,
-    mixins.DestroyModelMixin,
-    viewsets.GenericViewSet,
-):
-    """/api/usuarios — o GESTOR cadastra e remove usuários da sua empresa."""
+class UsuarioViewSet(viewsets.ModelViewSet):
+    """
+    /api/usuarios — o GESTOR cadastra, edita e inativa usuários da sua empresa (RF06).
+    Usuário com histórico (leituras ou ordens) não é excluído: mude a situacao para INATIVO.
+    """
 
-    queryset = Admin.objects.all()
-    serializer_class = AdminSerializer
+    queryset = Usuario.objects.select_related("motorista")
+    serializer_class = UsuarioSerializer
     permission_classes = [SomenteGestor]
     lookup_value_regex = "[^/]+"  # o id é o e-mail, que tem ponto
 
@@ -91,6 +88,15 @@ class UsuarioViewSet(
 
     def perform_create(self, serializer):
         serializer.save(empresa=self.request.user.empresa)
+
+    def perform_update(self, serializer):
+        dados = serializer.validated_data
+        if serializer.instance == self.request.user and (
+            dados.get("situacao", Situacao.ATIVO) != Situacao.ATIVO
+            or dados.get("perfil", Usuario.Perfil.GESTOR) != Usuario.Perfil.GESTOR
+        ):
+            raise ValidationError("Você não pode inativar a própria conta nem trocar o próprio perfil.")
+        serializer.save()
 
     def perform_destroy(self, instance):
         if instance == self.request.user:

@@ -1,27 +1,22 @@
 from django.conf import settings
 from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
-from django.db.models import F, Q
 
-from contas.models import Empresa
+from contas.models import Empresa, Situacao
 from contas.validators import validar_cpf, validar_placa
 
 
-class TipoVeiculo(models.TextChoices):
-    CARRO = "CARRO", "Carro"
-    MOTO = "MOTO", "Moto"
-    UTILITARIO = "UTILITARIO", "Utilitário"
-    VAN = "VAN", "Van"
-    CAMINHAO = "CAMINHAO", "Caminhão"
-    ONIBUS = "ONIBUS", "Ônibus"
-
-
 class Motorista(models.Model):
+    """Motoristas da frota. Fazem rodízio: não ficam presos a um veículo (RN17)."""
+
     cpf = models.CharField("CPF", max_length=11, primary_key=True, validators=[validar_cpf])
     nome = models.CharField(max_length=120)
     telefone = models.CharField(max_length=15)
-    num_cnh = models.CharField("nº da CNH", max_length=11, unique=True)
+    num_cnh = models.CharField("nº da CNH", max_length=11)
     validade_cnh = models.DateField("validade da CNH")
+    situacao = models.CharField(
+        "situação", max_length=20, choices=Situacao.choices, default=Situacao.ATIVO
+    )
     empresa = models.ForeignKey(
         Empresa, on_delete=models.PROTECT, db_column="cnpj_empresa", related_name="motoristas"
     )
@@ -35,65 +30,55 @@ class Motorista(models.Model):
 
 
 class Veiculo(models.Model):
-    class Situacao(models.TextChoices):
-        ATIVO = "ATIVO", "Ativo"
-        MANUTENCAO = "MANUTENCAO", "Em manutenção"
-        INATIVO = "INATIVO", "Inativo"
-
     placa = models.CharField(max_length=8, primary_key=True, validators=[validar_placa])
     marca = models.CharField(max_length=50)
     modelo = models.CharField(max_length=60)
     ano = models.IntegerField(validators=[MinValueValidator(1950), MaxValueValidator(2100)])
-    tipo = models.CharField(max_length=30, choices=TipoVeiculo.choices)
+    # Texto livre (ex.: GUINCHO, CAMINHAO); precisa ser igual ao tipo_veiculo do plano
+    tipo = models.CharField(max_length=30)
     situacao = models.CharField(
         "situação", max_length=20, choices=Situacao.choices, default=Situacao.ATIVO
     )
     empresa = models.ForeignKey(
         Empresa, on_delete=models.PROTECT, db_column="cnpj_empresa", related_name="veiculos"
     )
-    motorista = models.ForeignKey(
-        Motorista,
-        on_delete=models.SET_NULL,
-        db_column="cpf_motorista",
-        null=True,
-        blank=True,
-        related_name="veiculos",
-    )
 
     class Meta:
         db_table = "veiculo"
         ordering = ["placa"]
         verbose_name = "veículo"
-        constraints = [
-            models.CheckConstraint(condition=Q(ano__gte=1950, ano__lte=2100), name="ck_veiculo_ano"),
-            models.CheckConstraint(
-                condition=Q(situacao__in=["ATIVO", "MANUTENCAO", "INATIVO"]),
-                name="ck_veiculo_situacao",
-            ),
-        ]
 
     def __str__(self):
         return f"{self.placa} - {self.marca} {self.modelo}"
 
     def save(self, *args, **kwargs):
         self.placa = self.placa.upper().replace("-", "")
+        self.tipo = self.tipo.strip().upper()
         super().save(*args, **kwargs)
 
     @property
+    def ultima_leitura(self):
+        """A mais recente na ordem de registro (RN02), mesmo que seja um ajuste para menos."""
+        return self.leituras.order_by("-codigo").first()
+
+    @property
     def km_atual(self):
-        ultima = self.leituras.order_by("-quilometragem").first()
-        return ultima.quilometragem if ultima else None
+        ultima = self.ultima_leitura
+        return ultima.quilometragem if ultima else None  # None = "sem registro" (RN19)
 
 
 class PlanoManutencao(models.Model):
     id_plano = models.AutoField(primary_key=True)
     descricao = models.CharField("descrição", max_length=120)
-    tipo_veiculo = models.CharField("tipo de veículo", max_length=30, choices=TipoVeiculo.choices)
+    tipo_veiculo = models.CharField("tipo de veículo", max_length=30)
     intervalo_km = models.IntegerField(
         "intervalo (km)", null=True, blank=True, validators=[MinValueValidator(1)]
     )
     intervalo_meses = models.IntegerField(
         "intervalo (meses)", null=True, blank=True, validators=[MinValueValidator(1)]
+    )
+    situacao = models.CharField(
+        "situação", max_length=20, choices=Situacao.choices, default=Situacao.ATIVO
     )
     empresa = models.ForeignKey(
         Empresa, on_delete=models.PROTECT, db_column="cnpj_empresa", related_name="planos"
@@ -103,31 +88,20 @@ class PlanoManutencao(models.Model):
         db_table = "plano_manutencao"
         ordering = ["descricao"]
         verbose_name = "plano de manutenção"
-        constraints = [
-            # pelo menos um dos intervalos precisa ser informado
-            models.CheckConstraint(
-                condition=Q(intervalo_km__isnull=False) | Q(intervalo_meses__isnull=False),
-                name="ck_plano_algum_intervalo",
-            ),
-            models.CheckConstraint(
-                condition=Q(intervalo_km__isnull=True) | Q(intervalo_km__gt=0),
-                name="ck_plano_intervalo_km",
-            ),
-            models.CheckConstraint(
-                condition=Q(intervalo_meses__isnull=True) | Q(intervalo_meses__gt=0),
-                name="ck_plano_intervalo_meses",
-            ),
-        ]
 
     def __str__(self):
         return self.descricao
+
+    def save(self, *args, **kwargs):
+        self.tipo_veiculo = self.tipo_veiculo.strip().upper()
+        super().save(*args, **kwargs)
 
 
 class LeituraOdometro(models.Model):
     class Origem(models.TextChoices):
         MANUAL = "MANUAL", "Manual"
-        MOTORISTA = "MOTORISTA", "Motorista"
         ORDEM_SERVICO = "ORDEM_SERVICO", "Ordem de serviço"
+        AJUSTE_ODOMETRO = "AJUSTE_ODOMETRO", "Ajuste de odômetro"
 
     codigo = models.AutoField(primary_key=True)
     data_leitura = models.DateField("data da leitura")
@@ -137,14 +111,16 @@ class LeituraOdometro(models.Model):
         verbose_name="veículo", on_delete=models.PROTECT, db_column="placa_veiculo", related_name="leituras"
     )
     quilometragem = models.IntegerField(validators=[MinValueValidator(0)])
+    # Quem lançou a leitura, gestor ou motorista (RNF09)
+    usuario = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        verbose_name="usuário", on_delete=models.PROTECT, db_column="email_usuario", related_name="leituras"
+    )
 
     class Meta:
         db_table = "leitura_odometro"
-        ordering = ["-data_leitura", "-quilometragem"]
+        ordering = ["-codigo"]
         verbose_name = "leitura de odômetro"
-        constraints = [
-            models.CheckConstraint(condition=Q(quilometragem__gte=0), name="ck_leitura_km"),
-        ]
 
     def __str__(self):
         return f"{self.veiculo_id} - {self.quilometragem} km em {self.data_leitura:%d/%m/%Y}"
@@ -153,12 +129,12 @@ class LeituraOdometro(models.Model):
 class OrdemServico(models.Model):
     class Status(models.TextChoices):
         ABERTA = "ABERTA", "Aberta"
-        APROVADA = "APROVADA", "Aprovada"
-        EM_EXECUCAO = "EM_EXECUCAO", "Em execução"
+        APROVADA = "APROVADA", "Aprovada"  # reservado: a aprovação fica fora do MVP (RN12)
         CONCLUIDA = "CONCLUIDA", "Concluída"
         CANCELADA = "CANCELADA", "Cancelada"
 
-    numero = models.AutoField("número", primary_key=True)
+    id_ordem = models.AutoField(primary_key=True)  # identificador interno
+    numero = models.IntegerField("número")  # sequencial dentro da empresa, gerado na abertura (RF23)
     descricao = models.CharField("descrição", max_length=255)
     data_abertura = models.DateField("data de abertura")
     data_conclusao = models.DateField("data de conclusão", null=True, blank=True)
@@ -198,28 +174,9 @@ class OrdemServico(models.Model):
 
     class Meta:
         db_table = "ordem_servico"
-        ordering = ["-numero"]
+        ordering = ["-data_abertura", "-numero"]
         verbose_name = "ordem de serviço"
         verbose_name_plural = "ordens de serviço"
-        constraints = [
-            models.CheckConstraint(
-                condition=Q(
-                    status__in=["ABERTA", "APROVADA", "EM_EXECUCAO", "CONCLUIDA", "CANCELADA"]
-                ),
-                name="ck_os_status",
-            ),
-            models.CheckConstraint(
-                condition=Q(valor__isnull=True) | Q(valor__gte=0), name="ck_os_valor"
-            ),
-            models.CheckConstraint(
-                condition=Q(quilometragem__isnull=True) | Q(quilometragem__gte=0),
-                name="ck_os_quilometragem",
-            ),
-            models.CheckConstraint(
-                condition=Q(data_conclusao__isnull=True) | Q(data_conclusao__gte=F("data_abertura")),
-                name="ck_os_datas",
-            ),
-        ]
 
     def __str__(self):
         return f"OS {self.numero} - {self.veiculo_id}"

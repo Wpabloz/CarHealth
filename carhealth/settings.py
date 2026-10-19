@@ -22,11 +22,11 @@ INSTALLED_APPS = [
     "django.contrib.contenttypes",
     "django.contrib.staticfiles",
     # bibliotecas
-    "rest_framework",       # Django REST Framework: cria a API
+    "rest_framework",       
     "drf_spectacular",      # gera a documentação Swagger em /api/docs
-    "corsheaders",          # libera o frontend (outro endereço) a chamar a API
+    "corsheaders",   
     # apps do projeto
-    "contas",               # empresa, admin (usuário) e autenticação
+    "contas",               # empresa, usuário (gestor e motorista) e autenticação
     "frota",                # motorista, veículo, planos, odômetro, ordens de serviço
 ]
 
@@ -66,10 +66,10 @@ DATABASES = {
 
 # ---------------------------------------------------------------------------
 # Autenticação
-# A tabela "admin" é o usuário do sistema. Login com e-mail + senha.
+# A tabela "usuario" (perfis GESTOR e MOTORISTA) é quem faz login, com e-mail + senha.
 # Senhas gravadas com bcrypt (coluna "senha"), nunca em texto puro.
 # ---------------------------------------------------------------------------
-AUTH_USER_MODEL = "contas.Admin"
+AUTH_USER_MODEL = "contas.Usuario"
 
 PASSWORD_HASHERS = [
     "django.contrib.auth.hashers.BCryptSHA256PasswordHasher",
@@ -102,9 +102,9 @@ SIMPLE_JWT = {
 
 SPECTACULAR_SETTINGS = {
     "TITLE": "CarHealth API",
-        "DESCRIPTION": "API do CarHealth para gestão de manutenção de frotas.",
-    "VERSION": "0.2.0",
-    "ENUM_NAME_OVERRIDES": {"TipoVeiculoEnum": "frota.models.TipoVeiculo"},
+    "DESCRIPTION": "API do CarHealth para gestão de manutenção de frotas.",
+    "VERSION": "0.3.0",
+    "ENUM_NAME_OVERRIDES": {"SituacaoEnum": "contas.models.Situacao"},
 }
 
 # Endereços do frontend que podem chamar a API (separados por vírgula no .env)
