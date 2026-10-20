@@ -1,0 +1,2566 @@
+{
+ "info": {
+  "name": "CarHealth API",
+  "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+  "description": "Rode primeiro 'Auth > Registrar' (uma vez) ou 'Auth > Login'. O token é salvo sozinho e enviado em todas as outras chamadas. Depois rode as pastas na ordem. A pasta 9 entra como motorista, com o token salvo em token_motorista."
+ },
+ "auth": {
+  "type": "bearer",
+  "bearer": [
+   {
+    "key": "token",
+    "value": "{{token}}",
+    "type": "string"
+   }
+  ]
+ },
+ "variable": [
+  {
+   "key": "token",
+   "value": ""
+  },
+  {
+   "key": "refresh",
+   "value": ""
+  },
+  {
+   "key": "token_motorista",
+   "value": ""
+  },
+  {
+   "key": "hoje",
+   "value": ""
+  }
+ ],
+ "item": [
+  {
+   "name": "1. Auth",
+   "description": "",
+   "item": [
+    {
+     "name": "Registrar (empresa + gestor)",
+     "request": {
+      "method": "POST",
+      "header": [
+       {
+        "key": "Content-Type",
+        "value": "application/json"
+       }
+      ],
+      "description": "Só na primeira vez. Cria a empresa e o primeiro GESTOR.",
+      "url": {
+       "raw": "http://127.0.0.1:8000/api/auth/registrar",
+       "protocol": "http",
+       "host": [
+        "127",
+        "0",
+        "0",
+        "1"
+       ],
+       "port": "8000",
+       "path": [
+        "api",
+        "auth",
+        "registrar"
+       ]
+      },
+      "body": {
+       "mode": "raw",
+       "raw": "{\n  \"empresa\": {\n    \"cnpj\": \"11222333000181\",\n    \"razao_social\": \"Reboques Sueli LTDA\",\n    \"telefone\": \"83999990000\",\n    \"email\": \"contato@sueli.com\"\n  },\n  \"nome\": \"Sueli Gomes\",\n  \"email\": \"sueli@sueli.com\",\n  \"password\": \"CarHealth#2026\"\n}",
+       "options": {
+        "raw": {
+         "language": "json"
+        }
+       }
+      },
+      "auth": {
+       "type": "noauth"
+      }
+     },
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "const r = pm.response.json();",
+         "if (r.access) { pm.collectionVariables.set('token', r.access); }",
+         "if (r.refresh) { pm.collectionVariables.set('refresh', r.refresh); }"
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "name": "Login (gestor)",
+     "request": {
+      "method": "POST",
+      "header": [
+       {
+        "key": "Content-Type",
+        "value": "application/json"
+       }
+      ],
+      "description": "",
+      "url": {
+       "raw": "http://127.0.0.1:8000/api/auth/login",
+       "protocol": "http",
+       "host": [
+        "127",
+        "0",
+        "0",
+        "1"
+       ],
+       "port": "8000",
+       "path": [
+        "api",
+        "auth",
+        "login"
+       ]
+      },
+      "body": {
+       "mode": "raw",
+       "raw": "{\n  \"email\": \"sueli@sueli.com\",\n  \"password\": \"CarHealth#2026\"\n}",
+       "options": {
+        "raw": {
+         "language": "json"
+        }
+       }
+      },
+      "auth": {
+       "type": "noauth"
+      }
+     },
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "const r = pm.response.json();",
+         "if (r.access) { pm.collectionVariables.set('token', r.access); }",
+         "if (r.refresh) { pm.collectionVariables.set('refresh', r.refresh); }"
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "name": "Me (testa o token)",
+     "request": {
+      "method": "GET",
+      "header": [],
+      "description": "Devolve o perfil da conta (GESTOR ou MOTORISTA).",
+      "url": {
+       "raw": "http://127.0.0.1:8000/api/auth/me",
+       "protocol": "http",
+       "host": [
+        "127",
+        "0",
+        "0",
+        "1"
+       ],
+       "port": "8000",
+       "path": [
+        "api",
+        "auth",
+        "me"
+       ]
+      }
+     }
+    },
+    {
+     "name": "Renovar token",
+     "request": {
+      "method": "POST",
+      "header": [
+       {
+        "key": "Content-Type",
+        "value": "application/json"
+       }
+      ],
+      "description": "",
+      "url": {
+       "raw": "http://127.0.0.1:8000/api/auth/refresh",
+       "protocol": "http",
+       "host": [
+        "127",
+        "0",
+        "0",
+        "1"
+       ],
+       "port": "8000",
+       "path": [
+        "api",
+        "auth",
+        "refresh"
+       ]
+      },
+      "body": {
+       "mode": "raw",
+       "raw": "{\n  \"refresh\": \"{{refresh}}\"\n}",
+       "options": {
+        "raw": {
+         "language": "json"
+        }
+       }
+      },
+      "auth": {
+       "type": "noauth"
+      }
+     },
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "const r = pm.response.json();",
+         "if (r.access) { pm.collectionVariables.set('token', r.access); }",
+         "if (r.refresh) { pm.collectionVariables.set('refresh', r.refresh); }"
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "name": "Editar meu nome",
+     "request": {
+      "method": "PATCH",
+      "header": [
+       {
+        "key": "Content-Type",
+        "value": "application/json"
+       }
+      ],
+      "description": "O gestor muda o próprio nome. E-mail, perfil e situação não mudam por aqui.",
+      "url": {
+       "raw": "http://127.0.0.1:8000/api/auth/me",
+       "protocol": "http",
+       "host": [
+        "127",
+        "0",
+        "0",
+        "1"
+       ],
+       "port": "8000",
+       "path": [
+        "api",
+        "auth",
+        "me"
+       ]
+      },
+      "body": {
+       "mode": "raw",
+       "raw": "{\n  \"nome\": \"Sueli Gomes\"\n}",
+       "options": {
+        "raw": {
+         "language": "json"
+        }
+       }
+      }
+     }
+    },
+    {
+     "name": "Trocar minha senha",
+     "request": {
+      "method": "POST",
+      "header": [
+       {
+        "key": "Content-Type",
+        "value": "application/json"
+       }
+      ],
+      "description": "Derruba as outras sessões da conta e devolve tokens novos para esta (salvos sozinhos).",
+      "url": {
+       "raw": "http://127.0.0.1:8000/api/auth/senha",
+       "protocol": "http",
+       "host": [
+        "127",
+        "0",
+        "0",
+        "1"
+       ],
+       "port": "8000",
+       "path": [
+        "api",
+        "auth",
+        "senha"
+       ]
+      },
+      "body": {
+       "mode": "raw",
+       "raw": "{\n  \"senha_atual\": \"CarHealth#2026\",\n  \"nova_senha\": \"Nova#Senha2026\"\n}",
+       "options": {
+        "raw": {
+         "language": "json"
+        }
+       }
+      }
+     },
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "const r = pm.response.json();",
+         "if (r.access) { pm.collectionVariables.set('token', r.access); }",
+         "if (r.refresh) { pm.collectionVariables.set('refresh', r.refresh); }",
+         "pm.test('status esperado: 200', () => pm.response.to.have.status(200));"
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "name": "Voltar à senha original",
+     "request": {
+      "method": "POST",
+      "header": [
+       {
+        "key": "Content-Type",
+        "value": "application/json"
+       }
+      ],
+      "description": "Desfaz a troca anterior, para o resto da coleção continuar com a senha de sempre.",
+      "url": {
+       "raw": "http://127.0.0.1:8000/api/auth/senha",
+       "protocol": "http",
+       "host": [
+        "127",
+        "0",
+        "0",
+        "1"
+       ],
+       "port": "8000",
+       "path": [
+        "api",
+        "auth",
+        "senha"
+       ]
+      },
+      "body": {
+       "mode": "raw",
+       "raw": "{\n  \"senha_atual\": \"Nova#Senha2026\",\n  \"nova_senha\": \"CarHealth#2026\"\n}",
+       "options": {
+        "raw": {
+         "language": "json"
+        }
+       }
+      }
+     },
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "const r = pm.response.json();",
+         "if (r.access) { pm.collectionVariables.set('token', r.access); }",
+         "if (r.refresh) { pm.collectionVariables.set('refresh', r.refresh); }",
+         "pm.test('status esperado: 200', () => pm.response.to.have.status(200));"
+        ]
+       }
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "name": "2. Empresas",
+   "description": "",
+   "item": [
+    {
+     "name": "Listar (só a minha)",
+     "request": {
+      "method": "GET",
+      "header": [],
+      "description": "",
+      "url": {
+       "raw": "http://127.0.0.1:8000/api/empresas",
+       "protocol": "http",
+       "host": [
+        "127",
+        "0",
+        "0",
+        "1"
+       ],
+       "port": "8000",
+       "path": [
+        "api",
+        "empresas"
+       ]
+      }
+     }
+    },
+    {
+     "name": "Ver uma",
+     "request": {
+      "method": "GET",
+      "header": [],
+      "description": "",
+      "url": {
+       "raw": "http://127.0.0.1:8000/api/empresas/11222333000181",
+       "protocol": "http",
+       "host": [
+        "127",
+        "0",
+        "0",
+        "1"
+       ],
+       "port": "8000",
+       "path": [
+        "api",
+        "empresas",
+        "11222333000181"
+       ]
+      }
+     }
+    },
+    {
+     "name": "Editar (PATCH)",
+     "request": {
+      "method": "PATCH",
+      "header": [
+       {
+        "key": "Content-Type",
+        "value": "application/json"
+       }
+      ],
+      "description": "",
+      "url": {
+       "raw": "http://127.0.0.1:8000/api/empresas/11222333000181",
+       "protocol": "http",
+       "host": [
+        "127",
+        "0",
+        "0",
+        "1"
+       ],
+       "port": "8000",
+       "path": [
+        "api",
+        "empresas",
+        "11222333000181"
+       ]
+      },
+      "body": {
+       "mode": "raw",
+       "raw": "{\n  \"telefone\": \"83933334444\"\n}",
+       "options": {
+        "raw": {
+         "language": "json"
+        }
+       }
+      }
+     }
+    }
+   ]
+  },
+  {
+   "name": "3. Usuários (só Gestor)",
+   "description": "A conta do motorista é criada no cadastro do motorista (pasta 4) ou aqui, com perfil MOTORISTA e cpf_motorista.",
+   "item": [
+    {
+     "name": "Listar",
+     "request": {
+      "method": "GET",
+      "header": [],
+      "description": "",
+      "url": {
+       "raw": "http://127.0.0.1:8000/api/usuarios",
+       "protocol": "http",
+       "host": [
+        "127",
+        "0",
+        "0",
+        "1"
+       ],
+       "port": "8000",
+       "path": [
+        "api",
+        "usuarios"
+       ]
+      }
+     }
+    },
+    {
+     "name": "Cadastrar outro gestor",
+     "request": {
+      "method": "POST",
+      "header": [
+       {
+        "key": "Content-Type",
+        "value": "application/json"
+       }
+      ],
+      "description": "",
+      "url": {
+       "raw": "http://127.0.0.1:8000/api/usuarios",
+       "protocol": "http",
+       "host": [
+        "127",
+        "0",
+        "0",
+        "1"
+       ],
+       "port": "8000",
+       "path": [
+        "api",
+        "usuarios"
+       ]
+      },
+      "body": {
+       "mode": "raw",
+       "raw": "{\n  \"email\": \"carlos@sueli.com\",\n  \"nome\": \"Carlos Lima\",\n  \"perfil\": \"GESTOR\",\n  \"password\": \"CarHealth#2026\"\n}",
+       "options": {
+        "raw": {
+         "language": "json"
+        }
+       }
+      }
+     }
+    },
+    {
+     "name": "Ver um",
+     "request": {
+      "method": "GET",
+      "header": [],
+      "description": "",
+      "url": {
+       "raw": "http://127.0.0.1:8000/api/usuarios/carlos@sueli.com",
+       "protocol": "http",
+       "host": [
+        "127",
+        "0",
+        "0",
+        "1"
+       ],
+       "port": "8000",
+       "path": [
+        "api",
+        "usuarios",
+        "carlos@sueli.com"
+       ]
+      }
+     }
+    },
+    {
+     "name": "Editar (PATCH)",
+     "request": {
+      "method": "PATCH",
+      "header": [
+       {
+        "key": "Content-Type",
+        "value": "application/json"
+       }
+      ],
+      "description": "",
+      "url": {
+       "raw": "http://127.0.0.1:8000/api/usuarios/carlos@sueli.com",
+       "protocol": "http",
+       "host": [
+        "127",
+        "0",
+        "0",
+        "1"
+       ],
+       "port": "8000",
+       "path": [
+        "api",
+        "usuarios",
+        "carlos@sueli.com"
+       ]
+      },
+      "body": {
+       "mode": "raw",
+       "raw": "{\n  \"nome\": \"Carlos A. Lima\"\n}",
+       "options": {
+        "raw": {
+         "language": "json"
+        }
+       }
+      }
+     }
+    }
+   ]
+  },
+  {
+   "name": "4. Motoristas (só Gestor)",
+   "description": "",
+   "item": [
+    {
+     "name": "Cadastrar já liberando o acesso",
+     "request": {
+      "method": "POST",
+      "header": [
+       {
+        "key": "Content-Type",
+        "value": "application/json"
+       }
+      ],
+      "description": "email_acesso e senha_inicial são opcionais: com eles, a conta de perfil MOTORISTA é criada junto (RF33).",
+      "url": {
+       "raw": "http://127.0.0.1:8000/api/motoristas",
+       "protocol": "http",
+       "host": [
+        "127",
+        "0",
+        "0",
+        "1"
+       ],
+       "port": "8000",
+       "path": [
+        "api",
+        "motoristas"
+       ]
+      },
+      "body": {
+       "mode": "raw",
+       "raw": "{\n  \"cpf\": \"52998224725\",\n  \"nome\": \"João Silva\",\n  \"telefone\": \"83988887777\",\n  \"num_cnh\": \"12345678901\",\n  \"validade_cnh\": \"2030-01-01\",\n  \"email_acesso\": \"joao@sueli.com\",\n  \"senha_inicial\": \"CarHealth#2026\"\n}",
+       "options": {
+        "raw": {
+         "language": "json"
+        }
+       }
+      }
+     }
+    },
+    {
+     "name": "Listar",
+     "request": {
+      "method": "GET",
+      "header": [],
+      "description": "",
+      "url": {
+       "raw": "http://127.0.0.1:8000/api/motoristas",
+       "protocol": "http",
+       "host": [
+        "127",
+        "0",
+        "0",
+        "1"
+       ],
+       "port": "8000",
+       "path": [
+        "api",
+        "motoristas"
+       ]
+      }
+     }
+    },
+    {
+     "name": "Ver um",
+     "request": {
+      "method": "GET",
+      "header": [],
+      "description": "",
+      "url": {
+       "raw": "http://127.0.0.1:8000/api/motoristas/52998224725",
+       "protocol": "http",
+       "host": [
+        "127",
+        "0",
+        "0",
+        "1"
+       ],
+       "port": "8000",
+       "path": [
+        "api",
+        "motoristas",
+        "52998224725"
+       ]
+      }
+     }
+    },
+    {
+     "name": "Editar (PUT = todos os campos)",
+     "request": {
+      "method": "PUT",
+      "header": [
+       {
+        "key": "Content-Type",
+        "value": "application/json"
+       }
+      ],
+      "description": "",
+      "url": {
+       "raw": "http://127.0.0.1:8000/api/motoristas/52998224725",
+       "protocol": "http",
+       "host": [
+        "127",
+        "0",
+        "0",
+        "1"
+       ],
+       "port": "8000",
+       "path": [
+        "api",
+        "motoristas",
+        "52998224725"
+       ]
+      },
+      "body": {
+       "mode": "raw",
+       "raw": "{\n  \"cpf\": \"52998224725\",\n  \"nome\": \"João da Silva\",\n  \"telefone\": \"83988887777\",\n  \"num_cnh\": \"12345678901\",\n  \"validade_cnh\": \"2030-01-01\",\n  \"situacao\": \"ATIVO\"\n}",
+       "options": {
+        "raw": {
+         "language": "json"
+        }
+       }
+      }
+     }
+    },
+    {
+     "name": "Editar parcial (PATCH)",
+     "request": {
+      "method": "PATCH",
+      "header": [
+       {
+        "key": "Content-Type",
+        "value": "application/json"
+       }
+      ],
+      "description": "",
+      "url": {
+       "raw": "http://127.0.0.1:8000/api/motoristas/52998224725",
+       "protocol": "http",
+       "host": [
+        "127",
+        "0",
+        "0",
+        "1"
+       ],
+       "port": "8000",
+       "path": [
+        "api",
+        "motoristas",
+        "52998224725"
+       ]
+      },
+      "body": {
+       "mode": "raw",
+       "raw": "{\n  \"telefone\": \"83977776666\"\n}",
+       "options": {
+        "raw": {
+         "language": "json"
+        }
+       }
+      }
+     }
+    }
+   ]
+  },
+  {
+   "name": "5. Veículos",
+   "description": "",
+   "item": [
+    {
+     "name": "Cadastrar",
+     "request": {
+      "method": "POST",
+      "header": [
+       {
+        "key": "Content-Type",
+        "value": "application/json"
+       }
+      ],
+      "description": "identificacao, observacoes e quilometragem_inicial são opcionais. A quilometragem vira a primeira leitura.",
+      "url": {
+       "raw": "http://127.0.0.1:8000/api/veiculos",
+       "protocol": "http",
+       "host": [
+        "127",
+        "0",
+        "0",
+        "1"
+       ],
+       "port": "8000",
+       "path": [
+        "api",
+        "veiculos"
+       ]
+      },
+      "body": {
+       "mode": "raw",
+       "raw": "{\n  \"placa\": \"QWE1A23\",\n  \"identificacao\": \"Guincho 01\",\n  \"marca\": \"Mercedes-Benz\",\n  \"modelo\": \"Accelo 1016\",\n  \"ano\": 2021,\n  \"tipo\": \"GUINCHO\",\n  \"observacoes\": \"Plataforma hidráulica asa-delta\",\n  \"quilometragem_inicial\": 44000\n}",
+       "options": {
+        "raw": {
+         "language": "json"
+        }
+       }
+      }
+     }
+    },
+    {
+     "name": "Listar",
+     "request": {
+      "method": "GET",
+      "header": [],
+      "description": "",
+      "url": {
+       "raw": "http://127.0.0.1:8000/api/veiculos",
+       "protocol": "http",
+       "host": [
+        "127",
+        "0",
+        "0",
+        "1"
+       ],
+       "port": "8000",
+       "path": [
+        "api",
+        "veiculos"
+       ]
+      }
+     }
+    },
+    {
+     "name": "Buscar pela placa",
+     "request": {
+      "method": "GET",
+      "header": [],
+      "description": "",
+      "url": {
+       "raw": "http://127.0.0.1:8000/api/veiculos?placa=QWE",
+       "protocol": "http",
+       "host": [
+        "127",
+        "0",
+        "0",
+        "1"
+       ],
+       "port": "8000",
+       "path": [
+        "api",
+        "veiculos"
+       ],
+       "query": [
+        {
+         "key": "placa",
+         "value": "QWE"
+        }
+       ]
+      }
+     }
+    },
+    {
+     "name": "Filtrar por situação",
+     "request": {
+      "method": "GET",
+      "header": [],
+      "description": "",
+      "url": {
+       "raw": "http://127.0.0.1:8000/api/veiculos?situacao=ATIVO",
+       "protocol": "http",
+       "host": [
+        "127",
+        "0",
+        "0",
+        "1"
+       ],
+       "port": "8000",
+       "path": [
+        "api",
+        "veiculos"
+       ],
+       "query": [
+        {
+         "key": "situacao",
+         "value": "ATIVO"
+        }
+       ]
+      }
+     }
+    },
+    {
+     "name": "Tipos já usados (sugestão)",
+     "request": {
+      "method": "GET",
+      "header": [],
+      "description": "",
+      "url": {
+       "raw": "http://127.0.0.1:8000/api/veiculos/tipos",
+       "protocol": "http",
+       "host": [
+        "127",
+        "0",
+        "0",
+        "1"
+       ],
+       "port": "8000",
+       "path": [
+        "api",
+        "veiculos",
+        "tipos"
+       ]
+      }
+     }
+    },
+    {
+     "name": "Ver um",
+     "request": {
+      "method": "GET",
+      "header": [],
+      "description": "",
+      "url": {
+       "raw": "http://127.0.0.1:8000/api/veiculos/QWE1A23",
+       "protocol": "http",
+       "host": [
+        "127",
+        "0",
+        "0",
+        "1"
+       ],
+       "port": "8000",
+       "path": [
+        "api",
+        "veiculos",
+        "QWE1A23"
+       ]
+      }
+     }
+    },
+    {
+     "name": "Editar (PUT = todos os campos)",
+     "request": {
+      "method": "PUT",
+      "header": [
+       {
+        "key": "Content-Type",
+        "value": "application/json"
+       }
+      ],
+      "description": "",
+      "url": {
+       "raw": "http://127.0.0.1:8000/api/veiculos/QWE1A23",
+       "protocol": "http",
+       "host": [
+        "127",
+        "0",
+        "0",
+        "1"
+       ],
+       "port": "8000",
+       "path": [
+        "api",
+        "veiculos",
+        "QWE1A23"
+       ]
+      },
+      "body": {
+       "mode": "raw",
+       "raw": "{\n  \"placa\": \"QWE1A23\",\n  \"identificacao\": \"Guincho 01\",\n  \"marca\": \"Mercedes-Benz\",\n  \"modelo\": \"Accelo 1016\",\n  \"ano\": 2021,\n  \"tipo\": \"GUINCHO\",\n  \"situacao\": \"ATIVO\",\n  \"observacoes\": \"Plataforma hidráulica asa-delta\"\n}",
+       "options": {
+        "raw": {
+         "language": "json"
+        }
+       }
+      }
+     }
+    },
+    {
+     "name": "Editar parcial (PATCH)",
+     "request": {
+      "method": "PATCH",
+      "header": [
+       {
+        "key": "Content-Type",
+        "value": "application/json"
+       }
+      ],
+      "description": "",
+      "url": {
+       "raw": "http://127.0.0.1:8000/api/veiculos/QWE1A23",
+       "protocol": "http",
+       "host": [
+        "127",
+        "0",
+        "0",
+        "1"
+       ],
+       "port": "8000",
+       "path": [
+        "api",
+        "veiculos",
+        "QWE1A23"
+       ]
+      },
+      "body": {
+       "mode": "raw",
+       "raw": "{\n  \"modelo\": \"Accelo 1016 CE\"\n}",
+       "options": {
+        "raw": {
+         "language": "json"
+        }
+       }
+      }
+     }
+    }
+   ]
+  },
+  {
+   "name": "6. Planos de manutenção (só Gestor)",
+   "description": "",
+   "item": [
+    {
+     "name": "Cadastrar",
+     "request": {
+      "method": "POST",
+      "header": [
+       {
+        "key": "Content-Type",
+        "value": "application/json"
+       }
+      ],
+      "description": "",
+      "url": {
+       "raw": "http://127.0.0.1:8000/api/planos-manutencao",
+       "protocol": "http",
+       "host": [
+        "127",
+        "0",
+        "0",
+        "1"
+       ],
+       "port": "8000",
+       "path": [
+        "api",
+        "planos-manutencao"
+       ]
+      },
+      "body": {
+       "mode": "raw",
+       "raw": "{\n  \"descricao\": \"Troca de óleo\",\n  \"tipo_veiculo\": \"GUINCHO\",\n  \"intervalo_km\": 10000,\n  \"intervalo_meses\": 6\n}",
+       "options": {
+        "raw": {
+         "language": "json"
+        }
+       }
+      }
+     }
+    },
+    {
+     "name": "Listar",
+     "request": {
+      "method": "GET",
+      "header": [],
+      "description": "",
+      "url": {
+       "raw": "http://127.0.0.1:8000/api/planos-manutencao",
+       "protocol": "http",
+       "host": [
+        "127",
+        "0",
+        "0",
+        "1"
+       ],
+       "port": "8000",
+       "path": [
+        "api",
+        "planos-manutencao"
+       ]
+      }
+     }
+    },
+    {
+     "name": "Ver um",
+     "request": {
+      "method": "GET",
+      "header": [],
+      "description": "",
+      "url": {
+       "raw": "http://127.0.0.1:8000/api/planos-manutencao/1",
+       "protocol": "http",
+       "host": [
+        "127",
+        "0",
+        "0",
+        "1"
+       ],
+       "port": "8000",
+       "path": [
+        "api",
+        "planos-manutencao",
+        "1"
+       ]
+      }
+     }
+    },
+    {
+     "name": "Editar (PUT = todos os campos)",
+     "request": {
+      "method": "PUT",
+      "header": [
+       {
+        "key": "Content-Type",
+        "value": "application/json"
+       }
+      ],
+      "description": "",
+      "url": {
+       "raw": "http://127.0.0.1:8000/api/planos-manutencao/1",
+       "protocol": "http",
+       "host": [
+        "127",
+        "0",
+        "0",
+        "1"
+       ],
+       "port": "8000",
+       "path": [
+        "api",
+        "planos-manutencao",
+        "1"
+       ]
+      },
+      "body": {
+       "mode": "raw",
+       "raw": "{\n  \"descricao\": \"Troca de óleo e filtro\",\n  \"tipo_veiculo\": \"GUINCHO\",\n  \"intervalo_km\": 10000,\n  \"intervalo_meses\": 6,\n  \"situacao\": \"ATIVO\"\n}",
+       "options": {
+        "raw": {
+         "language": "json"
+        }
+       }
+      }
+     }
+    },
+    {
+     "name": "Editar parcial (PATCH)",
+     "request": {
+      "method": "PATCH",
+      "header": [
+       {
+        "key": "Content-Type",
+        "value": "application/json"
+       }
+      ],
+      "description": "",
+      "url": {
+       "raw": "http://127.0.0.1:8000/api/planos-manutencao/1",
+       "protocol": "http",
+       "host": [
+        "127",
+        "0",
+        "0",
+        "1"
+       ],
+       "port": "8000",
+       "path": [
+        "api",
+        "planos-manutencao",
+        "1"
+       ]
+      },
+      "body": {
+       "mode": "raw",
+       "raw": "{\n  \"intervalo_km\": 12000\n}",
+       "options": {
+        "raw": {
+         "language": "json"
+        }
+       }
+      }
+     }
+    }
+   ]
+  },
+  {
+   "name": "7. Leituras de odômetro",
+   "description": "",
+   "item": [
+    {
+     "name": "Registrar",
+     "request": {
+      "method": "POST",
+      "header": [
+       {
+        "key": "Content-Type",
+        "value": "application/json"
+       }
+      ],
+      "description": "A data é a de hoje e o responsável é quem está logado (RF12).",
+      "url": {
+       "raw": "http://127.0.0.1:8000/api/leituras-odometro",
+       "protocol": "http",
+       "host": [
+        "127",
+        "0",
+        "0",
+        "1"
+       ],
+       "port": "8000",
+       "path": [
+        "api",
+        "leituras-odometro"
+       ]
+      },
+      "body": {
+       "mode": "raw",
+       "raw": "{\n  \"placa_veiculo\": \"QWE1A23\",\n  \"quilometragem\": 45000\n}",
+       "options": {
+        "raw": {
+         "language": "json"
+        }
+       }
+      }
+     }
+    },
+    {
+     "name": "Leitura menor que a última (recusada)",
+     "request": {
+      "method": "POST",
+      "header": [
+       {
+        "key": "Content-Type",
+        "value": "application/json"
+       }
+      ],
+      "description": "O odômetro só avança (RN03).",
+      "url": {
+       "raw": "http://127.0.0.1:8000/api/leituras-odometro",
+       "protocol": "http",
+       "host": [
+        "127",
+        "0",
+        "0",
+        "1"
+       ],
+       "port": "8000",
+       "path": [
+        "api",
+        "leituras-odometro"
+       ]
+      },
+      "body": {
+       "mode": "raw",
+       "raw": "{\n  \"placa_veiculo\": \"QWE1A23\",\n  \"quilometragem\": 44000\n}",
+       "options": {
+        "raw": {
+         "language": "json"
+        }
+       }
+      }
+     },
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test('status esperado: 400', () => pm.response.to.have.status(400));"
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "name": "Ajuste de odômetro (troca do equipamento)",
+     "request": {
+      "method": "POST",
+      "header": [
+       {
+        "key": "Content-Type",
+        "value": "application/json"
+       }
+      ],
+      "description": "Só o GESTOR pode lançar valor menor, com origem AJUSTE_ODOMETRO (CA03).",
+      "url": {
+       "raw": "http://127.0.0.1:8000/api/leituras-odometro",
+       "protocol": "http",
+       "host": [
+        "127",
+        "0",
+        "0",
+        "1"
+       ],
+       "port": "8000",
+       "path": [
+        "api",
+        "leituras-odometro"
+       ]
+      },
+      "body": {
+       "mode": "raw",
+       "raw": "{\n  \"placa_veiculo\": \"QWE1A23\",\n  \"quilometragem\": 120,\n  \"origem\": \"AJUSTE_ODOMETRO\"\n}",
+       "options": {
+        "raw": {
+         "language": "json"
+        }
+       }
+      }
+     }
+    },
+    {
+     "name": "Listar",
+     "request": {
+      "method": "GET",
+      "header": [],
+      "description": "",
+      "url": {
+       "raw": "http://127.0.0.1:8000/api/leituras-odometro",
+       "protocol": "http",
+       "host": [
+        "127",
+        "0",
+        "0",
+        "1"
+       ],
+       "port": "8000",
+       "path": [
+        "api",
+        "leituras-odometro"
+       ]
+      }
+     }
+    },
+    {
+     "name": "Filtrar por veículo",
+     "request": {
+      "method": "GET",
+      "header": [],
+      "description": "",
+      "url": {
+       "raw": "http://127.0.0.1:8000/api/leituras-odometro?veiculo=QWE1A23",
+       "protocol": "http",
+       "host": [
+        "127",
+        "0",
+        "0",
+        "1"
+       ],
+       "port": "8000",
+       "path": [
+        "api",
+        "leituras-odometro"
+       ],
+       "query": [
+        {
+         "key": "veiculo",
+         "value": "QWE1A23"
+        }
+       ]
+      }
+     }
+    },
+    {
+     "name": "Ver uma",
+     "request": {
+      "method": "GET",
+      "header": [],
+      "description": "",
+      "url": {
+       "raw": "http://127.0.0.1:8000/api/leituras-odometro/1",
+       "protocol": "http",
+       "host": [
+        "127",
+        "0",
+        "0",
+        "1"
+       ],
+       "port": "8000",
+       "path": [
+        "api",
+        "leituras-odometro",
+        "1"
+       ]
+      }
+     }
+    }
+   ]
+  },
+  {
+   "name": "8. Ordens de serviço (manutenções)",
+   "description": "Ciclo no MVP: ABERTA -> CONCLUIDA (POST /concluir) ou ABERTA -> CANCELADA (POST /cancelar).",
+   "item": [
+    {
+     "name": "Abrir OS (preventiva, com plano)",
+     "request": {
+      "method": "POST",
+      "header": [
+       {
+        "key": "Content-Type",
+        "value": "application/json"
+       }
+      ],
+      "description": "O número é sequencial por empresa. Sem data_abertura, vale a de hoje.",
+      "url": {
+       "raw": "http://127.0.0.1:8000/api/ordens-servico",
+       "protocol": "http",
+       "host": [
+        "127",
+        "0",
+        "0",
+        "1"
+       ],
+       "port": "8000",
+       "path": [
+        "api",
+        "ordens-servico"
+       ]
+      },
+      "body": {
+       "mode": "raw",
+       "raw": "{\n  \"placa_veiculo\": \"QWE1A23\",\n  \"id_plano\": 1,\n  \"descricao\": \"Troca de óleo e filtro\"\n}",
+       "options": {
+        "raw": {
+         "language": "json"
+        }
+       }
+      }
+     }
+    },
+    {
+     "name": "Listar",
+     "request": {
+      "method": "GET",
+      "header": [],
+      "description": "",
+      "url": {
+       "raw": "http://127.0.0.1:8000/api/ordens-servico",
+       "protocol": "http",
+       "host": [
+        "127",
+        "0",
+        "0",
+        "1"
+       ],
+       "port": "8000",
+       "path": [
+        "api",
+        "ordens-servico"
+       ]
+      }
+     }
+    },
+    {
+     "name": "Ver uma",
+     "request": {
+      "method": "GET",
+      "header": [],
+      "description": "",
+      "url": {
+       "raw": "http://127.0.0.1:8000/api/ordens-servico/1",
+       "protocol": "http",
+       "host": [
+        "127",
+        "0",
+        "0",
+        "1"
+       ],
+       "port": "8000",
+       "path": [
+        "api",
+        "ordens-servico",
+        "1"
+       ]
+      }
+     }
+    },
+    {
+     "name": "Editar (PATCH, só ABERTA)",
+     "request": {
+      "method": "PATCH",
+      "header": [
+       {
+        "key": "Content-Type",
+        "value": "application/json"
+       }
+      ],
+      "description": "",
+      "url": {
+       "raw": "http://127.0.0.1:8000/api/ordens-servico/1",
+       "protocol": "http",
+       "host": [
+        "127",
+        "0",
+        "0",
+        "1"
+       ],
+       "port": "8000",
+       "path": [
+        "api",
+        "ordens-servico",
+        "1"
+       ]
+      },
+      "body": {
+       "mode": "raw",
+       "raw": "{\n  \"oficina\": \"Oficina do Zé\"\n}",
+       "options": {
+        "raw": {
+         "language": "json"
+        }
+       }
+      }
+     }
+    },
+    {
+     "name": "Concluir sem os dados (recusada)",
+     "request": {
+      "method": "POST",
+      "header": [
+       {
+        "key": "Content-Type",
+        "value": "application/json"
+       }
+      ],
+      "description": "Data, quilometragem e valor são obrigatórios (CA10).",
+      "url": {
+       "raw": "http://127.0.0.1:8000/api/ordens-servico/1/concluir",
+       "protocol": "http",
+       "host": [
+        "127",
+        "0",
+        "0",
+        "1"
+       ],
+       "port": "8000",
+       "path": [
+        "api",
+        "ordens-servico",
+        "1",
+        "concluir"
+       ]
+      },
+      "body": {
+       "mode": "raw",
+       "raw": "{}",
+       "options": {
+        "raw": {
+         "language": "json"
+        }
+       }
+      }
+     },
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test('status esperado: 400', () => pm.response.to.have.status(400));"
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "name": "Concluir",
+     "request": {
+      "method": "POST",
+      "header": [
+       {
+        "key": "Content-Type",
+        "value": "application/json"
+       }
+      ],
+      "description": "Conclui e grava a leitura de odômetro automaticamente, com origem ORDEM_SERVICO (CA13). A data de conclusão ({{hoje}}) é preenchida com a data de hoje.",
+      "url": {
+       "raw": "http://127.0.0.1:8000/api/ordens-servico/1/concluir",
+       "protocol": "http",
+       "host": [
+        "127",
+        "0",
+        "0",
+        "1"
+       ],
+       "port": "8000",
+       "path": [
+        "api",
+        "ordens-servico",
+        "1",
+        "concluir"
+       ]
+      },
+      "body": {
+       "mode": "raw",
+       "raw": "{\n  \"data_conclusao\": \"{{hoje}}\",\n  \"quilometragem\": 300,\n  \"valor\": \"350.00\",\n  \"oficina\": \"Oficina do Zé\"\n}",
+       "options": {
+        "raw": {
+         "language": "json"
+        }
+       }
+      }
+     },
+     "event": [
+      {
+       "listen": "prerequest",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.collectionVariables.set('hoje', new Date().toISOString().slice(0, 10));"
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "name": "Histórico de um veículo",
+     "request": {
+      "method": "GET",
+      "header": [],
+      "description": "",
+      "url": {
+       "raw": "http://127.0.0.1:8000/api/ordens-servico?veiculo=QWE1A23&status=CONCLUIDA",
+       "protocol": "http",
+       "host": [
+        "127",
+        "0",
+        "0",
+        "1"
+       ],
+       "port": "8000",
+       "path": [
+        "api",
+        "ordens-servico"
+       ],
+       "query": [
+        {
+         "key": "veiculo",
+         "value": "QWE1A23"
+        },
+        {
+         "key": "status",
+         "value": "CONCLUIDA"
+        }
+       ]
+      }
+     }
+    },
+    {
+     "name": "Abrir OS 2 (corretiva, sem plano)",
+     "request": {
+      "method": "POST",
+      "header": [
+       {
+        "key": "Content-Type",
+        "value": "application/json"
+       }
+      ],
+      "description": "",
+      "url": {
+       "raw": "http://127.0.0.1:8000/api/ordens-servico",
+       "protocol": "http",
+       "host": [
+        "127",
+        "0",
+        "0",
+        "1"
+       ],
+       "port": "8000",
+       "path": [
+        "api",
+        "ordens-servico"
+       ]
+      },
+      "body": {
+       "mode": "raw",
+       "raw": "{\n  \"placa_veiculo\": \"QWE1A23\",\n  \"descricao\": \"Troca do farol\"\n}",
+       "options": {
+        "raw": {
+         "language": "json"
+        }
+       }
+      }
+     }
+    },
+    {
+     "name": "Cancelar OS 2",
+     "request": {
+      "method": "POST",
+      "header": [],
+      "description": "",
+      "url": {
+       "raw": "http://127.0.0.1:8000/api/ordens-servico/2/cancelar",
+       "protocol": "http",
+       "host": [
+        "127",
+        "0",
+        "0",
+        "1"
+       ],
+       "port": "8000",
+       "path": [
+        "api",
+        "ordens-servico",
+        "2",
+        "cancelar"
+       ]
+      }
+     }
+    },
+    {
+     "name": "Registrar serviço já realizado",
+     "request": {
+      "method": "POST",
+      "header": [
+       {
+        "key": "Content-Type",
+        "value": "application/json"
+       }
+      ],
+      "description": "Abre e conclui a ordem de uma vez, com a leitura de odômetro. Se algo for recusado, nada é gravado.",
+      "url": {
+       "raw": "http://127.0.0.1:8000/api/ordens-servico/realizada",
+       "protocol": "http",
+       "host": [
+        "127",
+        "0",
+        "0",
+        "1"
+       ],
+       "port": "8000",
+       "path": [
+        "api",
+        "ordens-servico",
+        "realizada"
+       ]
+      },
+      "body": {
+       "mode": "raw",
+       "raw": "{\n  \"placa_veiculo\": \"QWE1A23\",\n  \"descricao\": \"Troca da lâmpada do giroflex\",\n  \"data_conclusao\": \"{{hoje}}\",\n  \"quilometragem\": 320,\n  \"valor\": \"45.00\",\n  \"oficina\": \"Auto Elétrica Sol\"\n}",
+       "options": {
+        "raw": {
+         "language": "json"
+        }
+       }
+      }
+     },
+     "event": [
+      {
+       "listen": "prerequest",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.collectionVariables.set('hoje', new Date().toISOString().slice(0, 10));"
+        ]
+       }
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "name": "9. Perfil motorista",
+   "description": "O motorista vê só veículos ativos, registra leituras e consulta o histórico sem valores (RN16).",
+   "item": [
+    {
+     "name": "Login (motorista)",
+     "request": {
+      "method": "POST",
+      "header": [
+       {
+        "key": "Content-Type",
+        "value": "application/json"
+       }
+      ],
+      "description": "",
+      "url": {
+       "raw": "http://127.0.0.1:8000/api/auth/login",
+       "protocol": "http",
+       "host": [
+        "127",
+        "0",
+        "0",
+        "1"
+       ],
+       "port": "8000",
+       "path": [
+        "api",
+        "auth",
+        "login"
+       ]
+      },
+      "body": {
+       "mode": "raw",
+       "raw": "{\n  \"email\": \"joao@sueli.com\",\n  \"password\": \"CarHealth#2026\"\n}",
+       "options": {
+        "raw": {
+         "language": "json"
+        }
+       }
+      },
+      "auth": {
+       "type": "noauth"
+      }
+     },
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "const r = pm.response.json();",
+         "if (r.access) { pm.collectionVariables.set('token_motorista', r.access); }"
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "name": "Me (motorista)",
+     "request": {
+      "method": "GET",
+      "header": [],
+      "description": "",
+      "url": {
+       "raw": "http://127.0.0.1:8000/api/auth/me",
+       "protocol": "http",
+       "host": [
+        "127",
+        "0",
+        "0",
+        "1"
+       ],
+       "port": "8000",
+       "path": [
+        "api",
+        "auth",
+        "me"
+       ]
+      },
+      "auth": {
+       "type": "bearer",
+       "bearer": [
+        {
+         "key": "token",
+         "value": "{{token_motorista}}",
+         "type": "string"
+        }
+       ]
+      }
+     }
+    },
+    {
+     "name": "Veículos ativos",
+     "request": {
+      "method": "GET",
+      "header": [],
+      "description": "",
+      "url": {
+       "raw": "http://127.0.0.1:8000/api/veiculos?placa=QWE",
+       "protocol": "http",
+       "host": [
+        "127",
+        "0",
+        "0",
+        "1"
+       ],
+       "port": "8000",
+       "path": [
+        "api",
+        "veiculos"
+       ],
+       "query": [
+        {
+         "key": "placa",
+         "value": "QWE"
+        }
+       ]
+      },
+      "auth": {
+       "type": "bearer",
+       "bearer": [
+        {
+         "key": "token",
+         "value": "{{token_motorista}}",
+         "type": "string"
+        }
+       ]
+      }
+     }
+    },
+    {
+     "name": "Registrar leitura",
+     "request": {
+      "method": "POST",
+      "header": [
+       {
+        "key": "Content-Type",
+        "value": "application/json"
+       }
+      ],
+      "description": "",
+      "url": {
+       "raw": "http://127.0.0.1:8000/api/leituras-odometro",
+       "protocol": "http",
+       "host": [
+        "127",
+        "0",
+        "0",
+        "1"
+       ],
+       "port": "8000",
+       "path": [
+        "api",
+        "leituras-odometro"
+       ]
+      },
+      "body": {
+       "mode": "raw",
+       "raw": "{\n  \"placa_veiculo\": \"QWE1A23\",\n  \"quilometragem\": 350\n}",
+       "options": {
+        "raw": {
+         "language": "json"
+        }
+       }
+      },
+      "auth": {
+       "type": "bearer",
+       "bearer": [
+        {
+         "key": "token",
+         "value": "{{token_motorista}}",
+         "type": "string"
+        }
+       ]
+      }
+     }
+    },
+    {
+     "name": "Leitura menor (recusada: avise o gestor)",
+     "request": {
+      "method": "POST",
+      "header": [
+       {
+        "key": "Content-Type",
+        "value": "application/json"
+       }
+      ],
+      "description": "",
+      "url": {
+       "raw": "http://127.0.0.1:8000/api/leituras-odometro",
+       "protocol": "http",
+       "host": [
+        "127",
+        "0",
+        "0",
+        "1"
+       ],
+       "port": "8000",
+       "path": [
+        "api",
+        "leituras-odometro"
+       ]
+      },
+      "body": {
+       "mode": "raw",
+       "raw": "{\n  \"placa_veiculo\": \"QWE1A23\",\n  \"quilometragem\": 10\n}",
+       "options": {
+        "raw": {
+         "language": "json"
+        }
+       }
+      },
+      "auth": {
+       "type": "bearer",
+       "bearer": [
+        {
+         "key": "token",
+         "value": "{{token_motorista}}",
+         "type": "string"
+        }
+       ]
+      }
+     },
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test('status esperado: 400', () => pm.response.to.have.status(400));"
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "name": "Ajuste de odômetro (recusado)",
+     "request": {
+      "method": "POST",
+      "header": [
+       {
+        "key": "Content-Type",
+        "value": "application/json"
+       }
+      ],
+      "description": "",
+      "url": {
+       "raw": "http://127.0.0.1:8000/api/leituras-odometro",
+       "protocol": "http",
+       "host": [
+        "127",
+        "0",
+        "0",
+        "1"
+       ],
+       "port": "8000",
+       "path": [
+        "api",
+        "leituras-odometro"
+       ]
+      },
+      "body": {
+       "mode": "raw",
+       "raw": "{\n  \"placa_veiculo\": \"QWE1A23\",\n  \"quilometragem\": 10,\n  \"origem\": \"AJUSTE_ODOMETRO\"\n}",
+       "options": {
+        "raw": {
+         "language": "json"
+        }
+       }
+      },
+      "auth": {
+       "type": "bearer",
+       "bearer": [
+        {
+         "key": "token",
+         "value": "{{token_motorista}}",
+         "type": "string"
+        }
+       ]
+      }
+     },
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test('status esperado: 400', () => pm.response.to.have.status(400));"
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "name": "Histórico de manutenções (sem valores)",
+     "request": {
+      "method": "GET",
+      "header": [],
+      "description": "",
+      "url": {
+       "raw": "http://127.0.0.1:8000/api/ordens-servico?veiculo=QWE1A23",
+       "protocol": "http",
+       "host": [
+        "127",
+        "0",
+        "0",
+        "1"
+       ],
+       "port": "8000",
+       "path": [
+        "api",
+        "ordens-servico"
+       ],
+       "query": [
+        {
+         "key": "veiculo",
+         "value": "QWE1A23"
+        }
+       ]
+      },
+      "auth": {
+       "type": "bearer",
+       "bearer": [
+        {
+         "key": "token",
+         "value": "{{token_motorista}}",
+         "type": "string"
+        }
+       ]
+      }
+     }
+    },
+    {
+     "name": "Abrir OS (proibido)",
+     "request": {
+      "method": "POST",
+      "header": [
+       {
+        "key": "Content-Type",
+        "value": "application/json"
+       }
+      ],
+      "description": "",
+      "url": {
+       "raw": "http://127.0.0.1:8000/api/ordens-servico",
+       "protocol": "http",
+       "host": [
+        "127",
+        "0",
+        "0",
+        "1"
+       ],
+       "port": "8000",
+       "path": [
+        "api",
+        "ordens-servico"
+       ]
+      },
+      "body": {
+       "mode": "raw",
+       "raw": "{\n  \"placa_veiculo\": \"QWE1A23\",\n  \"descricao\": \"X\"\n}",
+       "options": {
+        "raw": {
+         "language": "json"
+        }
+       }
+      },
+      "auth": {
+       "type": "bearer",
+       "bearer": [
+        {
+         "key": "token",
+         "value": "{{token_motorista}}",
+         "type": "string"
+        }
+       ]
+      }
+     },
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test('status esperado: 403', () => pm.response.to.have.status(403));"
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "name": "Cadastro de motoristas (proibido)",
+     "request": {
+      "method": "GET",
+      "header": [],
+      "description": "",
+      "url": {
+       "raw": "http://127.0.0.1:8000/api/motoristas",
+       "protocol": "http",
+       "host": [
+        "127",
+        "0",
+        "0",
+        "1"
+       ],
+       "port": "8000",
+       "path": [
+        "api",
+        "motoristas"
+       ]
+      },
+      "auth": {
+       "type": "bearer",
+       "bearer": [
+        {
+         "key": "token",
+         "value": "{{token_motorista}}",
+         "type": "string"
+        }
+       ]
+      }
+     },
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test('status esperado: 403', () => pm.response.to.have.status(403));"
+        ]
+       }
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "name": "10. Inativar e excluir (rodar por último)",
+   "description": "",
+   "item": [
+    {
+     "name": "Excluir veículo com histórico (recusado)",
+     "request": {
+      "method": "DELETE",
+      "header": [],
+      "description": "Registro com histórico não é excluído (RN15): inative.",
+      "url": {
+       "raw": "http://127.0.0.1:8000/api/veiculos/QWE1A23",
+       "protocol": "http",
+       "host": [
+        "127",
+        "0",
+        "0",
+        "1"
+       ],
+       "port": "8000",
+       "path": [
+        "api",
+        "veiculos",
+        "QWE1A23"
+       ]
+      }
+     },
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test('status esperado: 409', () => pm.response.to.have.status(409));"
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "name": "Inativar a conta do motorista",
+     "request": {
+      "method": "PATCH",
+      "header": [
+       {
+        "key": "Content-Type",
+        "value": "application/json"
+       }
+      ],
+      "description": "",
+      "url": {
+       "raw": "http://127.0.0.1:8000/api/usuarios/joao@sueli.com",
+       "protocol": "http",
+       "host": [
+        "127",
+        "0",
+        "0",
+        "1"
+       ],
+       "port": "8000",
+       "path": [
+        "api",
+        "usuarios",
+        "joao@sueli.com"
+       ]
+      },
+      "body": {
+       "mode": "raw",
+       "raw": "{\n  \"situacao\": \"INATIVO\"\n}",
+       "options": {
+        "raw": {
+         "language": "json"
+        }
+       }
+      }
+     }
+    },
+    {
+     "name": "Login do motorista inativo (recusado)",
+     "request": {
+      "method": "POST",
+      "header": [
+       {
+        "key": "Content-Type",
+        "value": "application/json"
+       }
+      ],
+      "description": "",
+      "url": {
+       "raw": "http://127.0.0.1:8000/api/auth/login",
+       "protocol": "http",
+       "host": [
+        "127",
+        "0",
+        "0",
+        "1"
+       ],
+       "port": "8000",
+       "path": [
+        "api",
+        "auth",
+        "login"
+       ]
+      },
+      "body": {
+       "mode": "raw",
+       "raw": "{\n  \"email\": \"joao@sueli.com\",\n  \"password\": \"CarHealth#2026\"\n}",
+       "options": {
+        "raw": {
+         "language": "json"
+        }
+       }
+      },
+      "auth": {
+       "type": "noauth"
+      }
+     },
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test('status esperado: 401', () => pm.response.to.have.status(401));"
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "name": "Inativar motorista",
+     "request": {
+      "method": "PATCH",
+      "header": [
+       {
+        "key": "Content-Type",
+        "value": "application/json"
+       }
+      ],
+      "description": "",
+      "url": {
+       "raw": "http://127.0.0.1:8000/api/motoristas/52998224725",
+       "protocol": "http",
+       "host": [
+        "127",
+        "0",
+        "0",
+        "1"
+       ],
+       "port": "8000",
+       "path": [
+        "api",
+        "motoristas",
+        "52998224725"
+       ]
+      },
+      "body": {
+       "mode": "raw",
+       "raw": "{\n  \"situacao\": \"INATIVO\"\n}",
+       "options": {
+        "raw": {
+         "language": "json"
+        }
+       }
+      }
+     }
+    },
+    {
+     "name": "Inativar veículo",
+     "request": {
+      "method": "PATCH",
+      "header": [
+       {
+        "key": "Content-Type",
+        "value": "application/json"
+       }
+      ],
+      "description": "",
+      "url": {
+       "raw": "http://127.0.0.1:8000/api/veiculos/QWE1A23",
+       "protocol": "http",
+       "host": [
+        "127",
+        "0",
+        "0",
+        "1"
+       ],
+       "port": "8000",
+       "path": [
+        "api",
+        "veiculos",
+        "QWE1A23"
+       ]
+      },
+      "body": {
+       "mode": "raw",
+       "raw": "{\n  \"situacao\": \"INATIVO\"\n}",
+       "options": {
+        "raw": {
+         "language": "json"
+        }
+       }
+      }
+     }
+    },
+    {
+     "name": "Inativar plano",
+     "request": {
+      "method": "PATCH",
+      "header": [
+       {
+        "key": "Content-Type",
+        "value": "application/json"
+       }
+      ],
+      "description": "",
+      "url": {
+       "raw": "http://127.0.0.1:8000/api/planos-manutencao/1",
+       "protocol": "http",
+       "host": [
+        "127",
+        "0",
+        "0",
+        "1"
+       ],
+       "port": "8000",
+       "path": [
+        "api",
+        "planos-manutencao",
+        "1"
+       ]
+      },
+      "body": {
+       "mode": "raw",
+       "raw": "{\n  \"situacao\": \"INATIVO\"\n}",
+       "options": {
+        "raw": {
+         "language": "json"
+        }
+       }
+      }
+     }
+    },
+    {
+     "name": "Excluir usuário sem histórico",
+     "request": {
+      "method": "DELETE",
+      "header": [],
+      "description": "",
+      "url": {
+       "raw": "http://127.0.0.1:8000/api/usuarios/carlos@sueli.com",
+       "protocol": "http",
+       "host": [
+        "127",
+        "0",
+        "0",
+        "1"
+       ],
+       "port": "8000",
+       "path": [
+        "api",
+        "usuarios",
+        "carlos@sueli.com"
+       ]
+      }
+     },
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test('status esperado: 204', () => pm.response.to.have.status(204));"
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "name": "Sair (revoga o refresh)",
+     "request": {
+      "method": "POST",
+      "header": [
+       {
+        "key": "Content-Type",
+        "value": "application/json"
+       }
+      ],
+      "description": "Depois disto o refresh salvo não renova mais o token.",
+      "url": {
+       "raw": "http://127.0.0.1:8000/api/auth/sair",
+       "protocol": "http",
+       "host": [
+        "127",
+        "0",
+        "0",
+        "1"
+       ],
+       "port": "8000",
+       "path": [
+        "api",
+        "auth",
+        "sair"
+       ]
+      },
+      "body": {
+       "mode": "raw",
+       "raw": "{\n  \"refresh\": \"{{refresh}}\"\n}",
+       "options": {
+        "raw": {
+         "language": "json"
+        }
+       }
+      },
+      "auth": {
+       "type": "noauth"
+      }
+     },
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test('status esperado: 200', () => pm.response.to.have.status(200));"
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "name": "Renovar depois de sair (recusado)",
+     "request": {
+      "method": "POST",
+      "header": [
+       {
+        "key": "Content-Type",
+        "value": "application/json"
+       }
+      ],
+      "description": "",
+      "url": {
+       "raw": "http://127.0.0.1:8000/api/auth/refresh",
+       "protocol": "http",
+       "host": [
+        "127",
+        "0",
+        "0",
+        "1"
+       ],
+       "port": "8000",
+       "path": [
+        "api",
+        "auth",
+        "refresh"
+       ]
+      },
+      "body": {
+       "mode": "raw",
+       "raw": "{\n  \"refresh\": \"{{refresh}}\"\n}",
+       "options": {
+        "raw": {
+         "language": "json"
+        }
+       }
+      },
+      "auth": {
+       "type": "noauth"
+      }
+     },
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test('status esperado: 401', () => pm.response.to.have.status(401));"
+        ]
+       }
+      }
+     ]
+    }
+   ]
+  }
+ ]
+}
