@@ -1,4 +1,3 @@
-import { useEffect } from "react";
 import { Calendar, Check, CircleDollarSign, Gauge, Store, Wrench } from "lucide-react";
 
 import { post } from "../../api/client";
@@ -11,15 +10,13 @@ import { useFormulario } from "../../lib/useFormulario";
  * Concluir uma ordem aberta: data, quilometragem e valor são obrigatórios (RN11);
  * a leitura de odômetro é gravada junto, com origem ordem de serviço (RN09).
  */
-export default function ConcluirModal({ ordem, veiculo, aoFechar, aoConcluir }) {
-  const f = useFormulario({ data_conclusao: hojeISO(), quilometragem: "", valor: "", oficina: "" });
-  const { setValores, setErros, setErroGeral } = f;
-  useEffect(() => {
-    if (!ordem) return;
-    setErros({});
-    setErroGeral("");
-    setValores({ data_conclusao: hojeISO(), quilometragem: "", valor: "", oficina: ordem.oficina || "" });
-  }, [ordem, setValores, setErros, setErroGeral]);
+export default function ConcluirModal({ ordem, ...props }) {
+  // O formulário só existe com a janela aberta: cada abertura começa do zero, com os dados certos
+  return ordem ? <JanelaConcluir ordem={ordem} {...props} /> : null;
+}
+
+function JanelaConcluir({ ordem, veiculo, aoFechar, aoConcluir }) {
+  const f = useFormulario({ data_conclusao: hojeISO(), quilometragem: "", valor: "", oficina: ordem.oficina || "" });
 
   const aoEnviar = f.enviar(async (v) => {
     // Campo vazio não é enviado: a API responde "Este campo é obrigatório." (CA10)
@@ -32,7 +29,7 @@ export default function ConcluirModal({ ordem, veiculo, aoFechar, aoConcluir }) 
   });
 
   return (
-    <Modal aberto={Boolean(ordem)} aoFechar={aoFechar} aoEnviar={aoEnviar} largura={620}
+    <Modal aberto aoFechar={aoFechar} aoEnviar={aoEnviar} largura={620}
       migalha={<><Wrench size={13} /> Ordem de serviço nº {ordem?.numero}</>}
       titulo="Concluir manutenção"
       subtitulo={ordem && `${ordem.descricao} · ${veiculo ? nomeVeiculo(veiculo) : ordem.placa_veiculo}`}

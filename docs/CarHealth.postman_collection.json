@@ -222,6 +222,148 @@
        }
       }
      ]
+    },
+    {
+     "name": "Editar meu nome",
+     "request": {
+      "method": "PATCH",
+      "header": [
+       {
+        "key": "Content-Type",
+        "value": "application/json"
+       }
+      ],
+      "description": "O gestor muda o próprio nome. E-mail, perfil e situação não mudam por aqui.",
+      "url": {
+       "raw": "http://127.0.0.1:8000/api/auth/me",
+       "protocol": "http",
+       "host": [
+        "127",
+        "0",
+        "0",
+        "1"
+       ],
+       "port": "8000",
+       "path": [
+        "api",
+        "auth",
+        "me"
+       ]
+      },
+      "body": {
+       "mode": "raw",
+       "raw": "{\n  \"nome\": \"Sueli Gomes\"\n}",
+       "options": {
+        "raw": {
+         "language": "json"
+        }
+       }
+      }
+     }
+    },
+    {
+     "name": "Trocar minha senha",
+     "request": {
+      "method": "POST",
+      "header": [
+       {
+        "key": "Content-Type",
+        "value": "application/json"
+       }
+      ],
+      "description": "Derruba as outras sessões da conta e devolve tokens novos para esta (salvos sozinhos).",
+      "url": {
+       "raw": "http://127.0.0.1:8000/api/auth/senha",
+       "protocol": "http",
+       "host": [
+        "127",
+        "0",
+        "0",
+        "1"
+       ],
+       "port": "8000",
+       "path": [
+        "api",
+        "auth",
+        "senha"
+       ]
+      },
+      "body": {
+       "mode": "raw",
+       "raw": "{\n  \"senha_atual\": \"CarHealth#2026\",\n  \"nova_senha\": \"Nova#Senha2026\"\n}",
+       "options": {
+        "raw": {
+         "language": "json"
+        }
+       }
+      }
+     },
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "const r = pm.response.json();",
+         "if (r.access) { pm.collectionVariables.set('token', r.access); }",
+         "if (r.refresh) { pm.collectionVariables.set('refresh', r.refresh); }",
+         "pm.test('status esperado: 200', () => pm.response.to.have.status(200));"
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "name": "Voltar à senha original",
+     "request": {
+      "method": "POST",
+      "header": [
+       {
+        "key": "Content-Type",
+        "value": "application/json"
+       }
+      ],
+      "description": "Desfaz a troca anterior, para o resto da coleção continuar com a senha de sempre.",
+      "url": {
+       "raw": "http://127.0.0.1:8000/api/auth/senha",
+       "protocol": "http",
+       "host": [
+        "127",
+        "0",
+        "0",
+        "1"
+       ],
+       "port": "8000",
+       "path": [
+        "api",
+        "auth",
+        "senha"
+       ]
+      },
+      "body": {
+       "mode": "raw",
+       "raw": "{\n  \"senha_atual\": \"Nova#Senha2026\",\n  \"nova_senha\": \"CarHealth#2026\"\n}",
+       "options": {
+        "raw": {
+         "language": "json"
+        }
+       }
+      }
+     },
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "const r = pm.response.json();",
+         "if (r.access) { pm.collectionVariables.set('token', r.access); }",
+         "if (r.refresh) { pm.collectionVariables.set('refresh', r.refresh); }",
+         "pm.test('status esperado: 200', () => pm.response.to.have.status(200));"
+        ]
+       }
+      }
+     ]
     }
    ]
   },
@@ -2309,6 +2451,110 @@
         "type": "text/javascript",
         "exec": [
          "pm.test('status esperado: 204', () => pm.response.to.have.status(204));"
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "name": "Sair (revoga o refresh)",
+     "request": {
+      "method": "POST",
+      "header": [
+       {
+        "key": "Content-Type",
+        "value": "application/json"
+       }
+      ],
+      "description": "Depois disto o refresh salvo não renova mais o token.",
+      "url": {
+       "raw": "http://127.0.0.1:8000/api/auth/sair",
+       "protocol": "http",
+       "host": [
+        "127",
+        "0",
+        "0",
+        "1"
+       ],
+       "port": "8000",
+       "path": [
+        "api",
+        "auth",
+        "sair"
+       ]
+      },
+      "body": {
+       "mode": "raw",
+       "raw": "{\n  \"refresh\": \"{{refresh}}\"\n}",
+       "options": {
+        "raw": {
+         "language": "json"
+        }
+       }
+      },
+      "auth": {
+       "type": "noauth"
+      }
+     },
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test('status esperado: 200', () => pm.response.to.have.status(200));"
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "name": "Renovar depois de sair (recusado)",
+     "request": {
+      "method": "POST",
+      "header": [
+       {
+        "key": "Content-Type",
+        "value": "application/json"
+       }
+      ],
+      "description": "",
+      "url": {
+       "raw": "http://127.0.0.1:8000/api/auth/refresh",
+       "protocol": "http",
+       "host": [
+        "127",
+        "0",
+        "0",
+        "1"
+       ],
+       "port": "8000",
+       "path": [
+        "api",
+        "auth",
+        "refresh"
+       ]
+      },
+      "body": {
+       "mode": "raw",
+       "raw": "{\n  \"refresh\": \"{{refresh}}\"\n}",
+       "options": {
+        "raw": {
+         "language": "json"
+        }
+       }
+      },
+      "auth": {
+       "type": "noauth"
+      }
+     },
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test('status esperado: 401', () => pm.response.to.have.status(401));"
         ]
        }
       }

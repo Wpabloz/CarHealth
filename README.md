@@ -172,8 +172,18 @@ Abra **http://127.0.0.1:8000/api/docs** no navegador: é a documentação intera
 |---|---|---|
 | POST 🔓 | `/auth/registrar` | Cria a **empresa** e o primeiro usuário (GESTOR). Já devolve o token. |
 | POST 🔓 | `/auth/login` | `{"email", "password"}` → devolve `access` (token) e `refresh`. Conta INATIVA recebe 401. |
-| POST 🔓 | `/auth/refresh` | `{"refresh"}` → novo `access` |
+| POST 🔓 | `/auth/refresh` | `{"refresh"}` → novo `access` **e novo `refresh`** (o antigo é revogado) |
+| POST 🔓 | `/auth/sair` | `{"refresh"}` → revoga o refresh (sair do sistema) |
 | GET 🔒 | `/auth/me` | Dados da conta logada, inclusive o `perfil` (o frontend usa para levar cada um à sua área) |
+| PATCH 🔒 | `/auth/me` | `{"nome"}`: o gestor muda o próprio nome. O nome do motorista vem do cadastro dele. E-mail, perfil e situação não mudam por aqui. |
+| POST 🔒 | `/auth/senha` | `{"senha_atual", "nova_senha"}`: troca a própria senha (gestor ou motorista). **Todas as sessões abertas da conta caem**; a resposta traz `access` e `refresh` novos para esta continuar. |
+
+### Sessões (tokens JWT)
+- O login devolve `access` (vale **15 minutos**, vai em toda chamada) e `refresh` (é a **janela de inatividade**, 30 minutos por padrão).
+- A cada `/auth/refresh` o `refresh` é trocado por um novo e o antigo deixa de valer. Sem uso pela janela inteira, a sessão expira e é preciso entrar de novo (RF02). Para mudar a janela: `SESSAO_INATIVIDADE_MINUTOS` no `.env`.
+- Cada token leva uma impressão da senha: **trocar a senha** (a própria, ou o gestor redefinindo a de alguém) **derruba na hora as sessões abertas** daquela conta.
+- **Sair** (`/auth/sair`) revoga o `refresh`. O `access` daquela sessão ainda vale até completar os seus 15 minutos.
+- Nada disso fica nas tabelas do sistema: o servidor só guarda a lista de tokens revogados (tabelas internas `token_blacklist_*`). Para limpar os registros vencidos de vez em quando: `python manage.py flushexpiredtokens`.
 
 ### CRUDs
 Cada recurso tem as 5 rotas padrão:
@@ -296,7 +306,7 @@ Para testar à mão, sem a coleção: faça o login, copie o `access` da respost
 ```powershell
 python manage.py test
 ```
-Roda 47 testes: login, token, bcrypt, conta inativa, isolamento entre empresas, permissões de cada perfil, CRUDs e as regras de negócio (odômetro, numeração e conclusão da OS, serviço já realizado, situação de manutenção). Rode antes de cada `git push`.
+Roda 55 testes: login, token, bcrypt, conta inativa, isolamento entre empresas, permissões de cada perfil, CRUDs e as regras de negócio (odômetro, numeração e conclusão da OS, serviço já realizado, situação de manutenção). Rode antes de cada `git push`.
 
 ## 8. Frontend (pasta `frontend/`)
 

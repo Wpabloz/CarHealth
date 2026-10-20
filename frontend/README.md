@@ -33,6 +33,7 @@ Tela (pages/)  ──►  api/client.js  ──►  /api/...  ──►  Django
 - **Login único** (`/login`): o perfil vem da própria conta. O gestor vai para o **Painel** e o motorista para a **lista de veículos** (RF04).
 - **Rotas protegidas por perfil:** o motorista que digitar uma rota do gestor é levado de volta à área dele. As permissões valem também no servidor (RNF08).
 - **Situação sempre com texto:** vencida, próxima e em dia aparecem com rótulo, não só com cor (RNF03).
+- **Sessão:** os tokens ficam no `localStorage` (chave `carhealth.tokens`). O token vencido é renovado sozinho, e várias chamadas ao mesmo tempo dividem uma única renovação. Sem uso (clique, tecla, toque) pela janela de inatividade do backend, a sessão é encerrada e o login mostra o motivo (RF02). Usar a tela sem chamar a API, como preencher um formulário, também conta como uso. Sair numa aba sai em todas.
 - **Mensagens de confirmação** aparecem na própria tela: "Quilometragem registrada", "Ordem de serviço aberta", "Ordem concluída. Próxima manutenção recalculada".
 
 ### Estrutura de pastas
@@ -71,7 +72,7 @@ src/
 | Tela | Rota | Arquivo |
 |---|---|---|
 | Login / Criar conta | `/login` · `/criar-conta` | `pages/Login.jsx`, `pages/CriarConta.jsx` |
-| Perfil | `/perfil` · `/m/perfil` | `pages/Perfil.jsx` |
+| Perfil + Editar perfil (janela: nome do gestor e troca de senha) | `/perfil` · `/m/perfil` | `pages/Perfil.jsx`, `pages/PerfilModal.jsx` |
 | Detalhe da ordem de serviço | `/ordens/:numero` | `pages/gestor/OrdemDetalhe.jsx` |
 | Motoristas (lista e cadastro com acesso) | `/motoristas` · `/motoristas/:cpf` | `pages/gestor/Motoristas.jsx`, `MotoristaForm.jsx` |
 | Planos de manutenção | `/planos` · `/planos/:id` | `pages/gestor/Planos.jsx`, `PlanoForm.jsx` |
@@ -81,6 +82,7 @@ src/
 - *Registrar Manutenção*: "Serviço já realizado" pede também **valor** e **oficina**, porque a conclusão exige data, km e valor (RN11). "Programar próxima revisão" mostra a próxima data e a km **calculadas pelo plano** (RN06), em vez de digitadas.
 - O registro e as leituras de odômetro do gestor (com ajuste de odômetro) ficam no **Histórico**, botão "Registrar km".
 - Os cartões de dica mostram só informação verdadeira do sistema (RNF13: nada de dado fictício no código).
+- *Editar Veículo* tem **Excluir veículo**, para o cadastrado por engano. Só funciona sem histórico (leituras ou ordens, inclusive a km informada no cadastro); com histórico, a tela orienta a inativar (RN15).
 
 ## 4. Mudar o visual
 

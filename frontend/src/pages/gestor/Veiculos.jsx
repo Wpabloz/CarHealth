@@ -5,7 +5,7 @@ import { CircleCheck, Clock, History, Lightbulb, Pencil, Plus, Search, TriangleA
 import { get, query } from "../../api/client";
 import Placa from "../../components/Placa";
 import {
-  Aviso, Botao, BotaoLink, Cabecalho, Conteudo, IconeQuadrado, Indicador, SeloCadastro, SeloManutencao, SeloPrazo, Vazio,
+  Aviso, AvisoDaNavegacao, Botao, BotaoLink, Cabecalho, Conteudo, IconeQuadrado, Indicador, SeloCadastro, SeloManutencao, SeloPrazo, Vazio,
 } from "../../components/ui";
 import { useResumo } from "../../layouts/resumo";
 import { km, marcaModelo, nomeVeiculo, plural, porGravidade } from "../../lib/formato";
@@ -34,6 +34,13 @@ export default function Veiculos() {
   const vencidas = painel?.pendencias.filter((p) => p.situacao === "VENCIDA").length || 0;
   const proximas = painel?.pendencias.filter((p) => p.situacao === "PROXIMA").length || 0;
 
+  const aoExcluir = (excluido) => {
+    setModal({ aberto: false, veiculo: null });
+    setAviso(`${nomeVeiculo(excluido)} excluído.`);
+    lista.recarregar();
+    recarregarPainel();
+  };
+
   const aoSalvar = (salvo, editou) => {
     setModal({ aberto: false, veiculo: null });
     setAviso(editou ? `${nomeVeiculo(salvo)} atualizado.` : `${nomeVeiculo(salvo)} cadastrado.`);
@@ -47,6 +54,7 @@ export default function Veiculos() {
         titulo="Veículos Cadastrados"
         subtitulo="Gerencie os veículos da sua frota e acompanhe o estado operacional de cada um."
         acoes={<Botao icone={Plus} onClick={() => setModal({ aberto: true, veiculo: null })}>Cadastrar veículo</Botao>} />
+      <AvisoDaNavegacao />
       <Aviso tipo="sucesso" icone={CircleCheck}>{aviso}</Aviso>
 
       <div className="indicadores indicadores--3">
@@ -127,7 +135,7 @@ export default function Veiculos() {
         <BotaoLink variante="contorno" to="/planos">Ver planos</BotaoLink>
       </section>
 
-      <VeiculoModal aberto={modal.aberto} veiculo={modal.veiculo} aoSalvar={aoSalvar}
+      <VeiculoModal aberto={modal.aberto} veiculo={modal.veiculo} aoSalvar={aoSalvar} aoExcluir={aoExcluir}
         aoFechar={() => setModal({ aberto: false, veiculo: null })} />
     </>
   );

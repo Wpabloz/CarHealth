@@ -159,3 +159,96 @@ class UsuarioTest(BaseContas):
         self.client.force_authenticate(conta)
         self.assertEqual(self.client.get("/api/usuarios").status_code, 403)
         self.assertEqual(self.client.get("/api/auth/me").data["nome"], "João")
+
+
+class MeuPerfilTest(BaseContas):
+    """O próprio usuário edita o nome (gestor) e troca a senha (gestor e motorista)."""
+
+    def test_gestor_muda_o_nome(self):
+        resp = self.client.patch("/api/auth/me", {"nome": "  Gestor Novo ", "perfil": "MOTORISTA"}, format="json")
+        self.assertEqual(resp.status_code, 200, resp.data)
+        self.assertEqual((resp.data["nome"], resp.data["perfil"]), ("Gestor Novo", "GESTOR"))  # perfil não muda
+        self.assertIn("nome", self.client.patch("/api/auth/me", {"nome": " "}, format="json").data)
+
+    def test_motorista_nao_muda_o_nome_pela_conta(self):
+        conta = Usuario.objects.create_user("m@a.com", SENHA, perfil="MOTORISTA", empresa=self.empresa,
+                                            motorista=self.motorista)
+        self.client.force_authenticate(conta)
+        self.assertIn("nome", self.client.patch("/api/auth/me", {"nome": "Outro"}, format="json").data)
+
+    def test_trocar_senha(self):
+        url = "/api/auth/senha"
+        self.assertIn("senha_atual", self.client.post(url, {"senha_atual": "errada", "nova_senha": "Nova#Senha2026"},
+                                                      format="json").data)
+        self.assertIn("nova_senha", self.client.post(url, {"senha_atual": SENHA, "nova_senha": "123"},
+                                                     format="json").data)
+        self.assertIn("nova_senha", self.client.post(url, {"senha_atual": SENHA, "nova_senha": SENHA},
+                                                     format="json").data)
+        resp = self.client.post(url, {"senha_atual": SENHA, "nova_senha": "Nova#Senha2026"}, format="json")
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(set(resp.data), {"access", "refresh"})  # esta sessão continua com tokens novos
+        self.client = self.client_class()  # sem login: entra só com e-mail e senha
+        login = lambda senha: self.client.post("/api/auth/login", {"email": "g@a.com", "password": senha},  # noqa: E731
+                                               format="json").status_code
+        self.assertEqual((login(SENHA), login("Nova#Senha2026")), (401, 200))
+
+
+class SessaoTest(BaseContas):
+    """Tokens: sair revoga, renovar troca o refresh, trocar a senha derruba as sessões, inatividade (RF02)."""
+
+    def setUp(self):
+        super().setUp()
+        self.client = self.client_class()  # aqui vale o token de verdade, sem force_authenticate
+
+    def entrar(self, senha=SENHA):
+        resp = self.client.post("/api/auth/login", {"email": "g@a.com", "password": senha}, format="json")
+        self.assertEqual(resp.status_code, 200)
+        return resp.data
+
+    def me(self, access):
+        return self.client.get("/api/auth/me", HTTP_AUTHORIZATION=f"Bearer {access}").status_code
+
+    def renovar(self, refresh):
+        return self.client.post("/api/auth/refresh", {"refresh": refresh}, format="json")
+
+    def test_sair_revoga_o_refresh(self):
+        tokens = self.entrar()
+        self.assertEqual(self.client.post("/api/auth/sair", {"refresh": tokens["refresh"]}, format="json").status_code, 200)
+        self.assertEqual(self.renovar(tokens["refresh"]).status_code, 401)
+
+    def test_renovar_troca_o_refresh(self):
+        tokens = self.entrar()
+        novo = self.renovar(tokens["refresh"])
+        self.assertEqual(novo.status_code, 200)
+        self.assertNotEqual(novo.data["refresh"], tokens["refresh"])
+        self.assertEqual(self.renovar(tokens["refresh"]).status_code, 401)  # o antigo não vale mais
+        self.assertEqual(self.me(novo.data["access"]), 200)
+
+    def test_trocar_a_senha_derruba_as_outras_sessoes(self):
+        celular, computador = self.entrar(), self.entrar()
+        resp = self.client.post("/api/auth/senha", {"senha_atual": SENHA, "nova_senha": "Nova#Senha2026"},
+                                format="json", HTTP_AUTHORIZATION=f"Bearer {computador['access']}")
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(self.me(celular["access"]), 401)  # o access da outra sessão caiu na hora
+        self.assertEqual(self.me(computador["access"]), 401)
+        self.assertEqual(self.renovar(celular["refresh"]).status_code, 401)
+        self.assertEqual(self.me(resp.data["access"]), 200)  # quem trocou continua, com tokens novos
+
+    def test_gestor_redefine_senha_e_a_sessao_do_usuario_cai(self):
+        outro = Usuario.objects.create_user("o@a.com", SENHA, nome="Outro", empresa=self.empresa, perfil="GESTOR")
+        sessao = self.client.post("/api/auth/login", {"email": "o@a.com", "password": SENHA}, format="json").data
+        gestor = self.entrar()
+        self.client.patch("/api/usuarios/o@a.com", {"password": "Redefinida#2026"}, format="json",
+                          HTTP_AUTHORIZATION=f"Bearer {gestor['access']}")
+        self.assertEqual(self.me(sessao["access"]), 401)
+        self.assertEqual(self.renovar(sessao["refresh"]).status_code, 401)
+        self.assertTrue(Usuario.objects.get(pk=outro.pk).check_password("Redefinida#2026"))
+
+    def test_janela_de_inatividade(self):
+        from django.conf import settings
+        from rest_framework_simplejwt.tokens import AccessToken, RefreshToken
+
+        tokens = self.entrar()
+        refresh, access = RefreshToken(tokens["refresh"]), AccessToken(tokens["access"])
+        self.assertEqual(refresh["exp"] - refresh["iat"], settings.SESSAO_INATIVIDADE_MINUTOS * 60)
+        self.assertEqual(access["exp"] - access["iat"], min(15, settings.SESSAO_INATIVIDADE_MINUTOS) * 60)

@@ -75,18 +75,68 @@ export function quandoPerderSessao(funcao) {
   aoPerderSessao = funcao;
 }
 
-async function renovarToken() {
-  const { refresh } = tokens.ler();
-  if (!refresh) return false;
-  const resp = await fetch(`${BASE}/auth/refresh`, {
+/** Conteúdo (payload) de um token JWT, sem conferir a assinatura: serve só para ler datas. */
+function lerToken(token) {
+  try {
+    return JSON.parse(atob(token.split(".")[1].replace(/-/g, "+").replace(/_/g, "/")));
+  } catch {
+    return null;
+  }
+}
+
+/** Janela de inatividade da sessão, lida do próprio refresh token (definida no .env do backend). */
+export function janelaDaSessaoMs() {
+  const carga = lerToken(tokens.ler().refresh || "");
+  return carga ? (carga.exp - carga.iat) * 1000 : 30 * 60000;
+}
+
+/** Há quanto tempo o refresh atual foi emitido. */
+export function idadeDoRefreshMs() {
+  const carga = lerToken(tokens.ler().refresh || "");
+  return carga ? Date.now() - carga.iat * 1000 : Infinity;
+}
+
+/**
+ * Renova o access com o refresh. A API devolve também um refresh NOVO e revoga o antigo; por isso
+ * as chamadas que chegam ao mesmo tempo dividem uma única renovação (senão a segunda usaria um
+ * refresh já revogado e derrubaria a sessão). Responde true se conseguiu.
+ */
+let renovacao = null;
+export function renovarToken() {
+  if (!renovacao) {
+    renovacao = (async () => {
+      const { refresh } = tokens.ler();
+      if (!refresh) return false;
+      let resp;
+      try {
+        resp = await fetch(`${BASE}/auth/refresh`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ refresh }),
+        });
+      } catch {
+        throw new ErroApi(0, null); // sem rede: não derruba a sessão
+      }
+      if (!resp.ok) return false;
+      const dados = await resp.json();
+      tokens.salvar({ ...tokens.ler(), access: dados.access, ...(dados.refresh && { refresh: dados.refresh }) });
+      return true;
+    })().finally(() => {
+      renovacao = null;
+    });
+  }
+  return renovacao;
+}
+
+/** Sair: revoga o refresh na API. Se não der (sem rede), a sessão expira sozinha pela inatividade. */
+export function revogarRefresh(refresh) {
+  if (!refresh) return Promise.resolve();
+  return fetch(`${BASE}/auth/sair`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ refresh }),
-  });
-  if (!resp.ok) return false;
-  const dados = await resp.json();
-  tokens.salvar({ ...tokens.ler(), access: dados.access, ...(dados.refresh && { refresh: dados.refresh }) });
-  return true;
+    keepalive: true, // termina mesmo se a página for trocada logo em seguida
+  }).catch(() => {});
 }
 
 export async function api(caminho, { metodo = "GET", corpo, publica = false, repetida = false } = {}) {
@@ -107,7 +157,14 @@ export async function api(caminho, { metodo = "GET", corpo, publica = false, rep
   }
 
   if (resp.status === 401 && !publica && !repetida) {
+    // Outra chamada já renovou enquanto esta estava em andamento: só repete com o token novo
+    const atual = tokens.ler().access;
+    if (atual && atual !== access) return api(caminho, { metodo, corpo, publica, repetida: true });
     if (await renovarToken()) return api(caminho, { metodo, corpo, publica, repetida: true });
+    tokens.limpar();
+    aoPerderSessao();
+  } else if (resp.status === 401 && !publica) {
+    // Renovou e mesmo assim foi recusado (ex.: token de antes de uma troca de senha): a sessão acabou
     tokens.limpar();
     aoPerderSessao();
   }

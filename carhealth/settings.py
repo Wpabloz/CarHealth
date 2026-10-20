@@ -25,6 +25,7 @@ INSTALLED_APPS = [
     "rest_framework",       
     "drf_spectacular",      # gera a documentação Swagger em /api/docs
     "corsheaders",   
+    "rest_framework_simplejwt.token_blacklist",  # lista de tokens revogados (sair, trocar senha)
     # apps do projeto
     "contas",               # empresa, usuário (gestor e motorista) e autenticação
     "frota",                # motorista, veículo, planos, odômetro, ordens de serviço
@@ -92,9 +93,16 @@ REST_FRAMEWORK = {
     "EXCEPTION_HANDLER": "carhealth.erros.tratar_erros",
 }
 
+# Sessão (RF02): sem uso por esse tempo, a sessão expira e é preciso entrar de novo
+SESSAO_INATIVIDADE_MINUTOS = int(os.getenv("SESSAO_INATIVIDADE_MINUTOS", "30"))
+
 SIMPLE_JWT = {
-    "ACCESS_TOKEN_LIFETIME": timedelta(hours=8),
-    "REFRESH_TOKEN_LIFETIME": timedelta(days=7),
+    # access curto; o refresh é a janela de inatividade e é trocado a cada renovação
+    "ACCESS_TOKEN_LIFETIME": timedelta(minutes=min(15, SESSAO_INATIVIDADE_MINUTOS)),
+    "REFRESH_TOKEN_LIFETIME": timedelta(minutes=SESSAO_INATIVIDADE_MINUTOS),
+    "ROTATE_REFRESH_TOKENS": True,
+    "BLACKLIST_AFTER_ROTATION": True,  # o refresh antigo não pode ser usado de novo
+    "CHECK_REVOKE_TOKEN": True,  # o token leva uma impressão da senha: trocar a senha derruba as sessões
     "AUTH_HEADER_TYPES": ("Bearer",),  # cabeçalho: Authorization: Bearer <token>
     "USER_ID_FIELD": "email",
     "USER_ID_CLAIM": "email",

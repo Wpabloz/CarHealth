@@ -1,10 +1,10 @@
-import { useEffect } from "react";
-import { Check, CirclePlus, Pencil } from "lucide-react";
+import { useState } from "react";
+import { Check, CirclePlus, Pencil, Trash2 } from "lucide-react";
 
-import { get, patch, post } from "../../api/client";
+import { get, patch, post, remover } from "../../api/client";
 import Modal from "../../components/Modal";
 import { Aviso, Botao, Campo } from "../../components/ui";
-import { somenteDigitos } from "../../lib/formato";
+import { nomeVeiculo, somenteDigitos } from "../../lib/formato";
 import { useCarregar } from "../../lib/useCarregar";
 import { useFormulario } from "../../lib/useFormulario";
 
@@ -13,21 +13,24 @@ const VAZIO = {
   tipo: "", situacao: "ATIVO", observacoes: "",
 };
 
-/** "Cadastrar Novo Veículo" do protótipo. Com veiculo, edita (a placa e a km não mudam por aqui). */
-export default function VeiculoModal({ aberto, veiculo, aoFechar, aoSalvar }) {
-  const editando = Boolean(veiculo);
-  const f = useFormulario(VAZIO);
-  const { dados: tipos } = useCarregar(() => (aberto ? get("/veiculos/tipos") : Promise.resolve([])), [aberto]);
+/**
+ * "Cadastrar Novo Veículo" do protótipo. Com veiculo, edita (a placa e a km não mudam por aqui)
+ * e permite excluir o que foi cadastrado por engano, desde que não tenha histórico (RN15).
+ */
+export default function VeiculoModal({ aberto, ...props }) {
+  // O formulário só existe com a janela aberta: cada abertura começa do zero, com os dados certos
+  return aberto ? <JanelaVeiculo {...props} /> : null;
+}
 
-  const { setValores, setErros, setErroGeral } = f;
-  useEffect(() => {
-    if (!aberto) return;
-    setErros({});
-    setErroGeral("");
-    setValores(veiculo
-      ? { ...VAZIO, ...veiculo, identificacao: veiculo.identificacao || "", observacoes: veiculo.observacoes || "" }
-      : VAZIO);
-  }, [aberto, veiculo, setValores, setErros, setErroGeral]);
+function JanelaVeiculo({ veiculo, aoFechar, aoSalvar, aoExcluir }) {
+  const editando = Boolean(veiculo);
+  const f = useFormulario(editando
+    ? { ...VAZIO, ...veiculo, identificacao: veiculo.identificacao || "", observacoes: veiculo.observacoes || "" }
+    : VAZIO);
+  const [confirmarExclusao, setConfirmarExclusao] = useState(false);
+  const [excluindo, setExcluindo] = useState(false);
+  const { dados: tipos } = useCarregar(() => get("/veiculos/tipos"), []);
+  const { setErroGeral } = f;
 
   const aoEnviar = f.enviar(async (v) => {
     const corpo = {
@@ -45,17 +48,50 @@ export default function VeiculoModal({ aberto, veiculo, aoFechar, aoSalvar }) {
     aoSalvar(salvo, editando);
   });
 
+  const excluir = async () => {
+    setExcluindo(true);
+    setErroGeral("");
+    try {
+      await remover(`/veiculos/${veiculo.placa}`);
+      aoExcluir(veiculo);
+    } catch (erro) {
+      setConfirmarExclusao(false);
+      setErroGeral(erro.status === 409
+        ? "Este veículo já tem histórico (leituras de odômetro ou ordens de serviço, inclusive a quilometragem "
+          + "informada no cadastro) e por isso não pode ser excluído. Para tirá-lo de uso, mude a Situação para "
+          + "Inativo e salve."
+        : erro.message);
+    } finally {
+      setExcluindo(false);
+    }
+  };
+
   return (
-    <Modal aberto={aberto} aoFechar={aoFechar} aoEnviar={aoEnviar}
+    <Modal aberto aoFechar={aoFechar} aoEnviar={aoEnviar}
       migalha={<>{editando ? <Pencil size={13} /> : <CirclePlus size={13} />} {editando ? "Editar registro" : "Novo registro"}</>}
       titulo={editando ? "Editar Veículo" : "Cadastrar Novo Veículo"}
       subtitulo={editando ? "Atualize os dados do veículo." : "Preencha os dados do novo veículo para iniciar o acompanhamento."}
-      rodape={
+      rodape={confirmarExclusao ? (
+        <div className="confirmacao confirmacao--rodape" role="alert">
+          <span>
+            <strong>Excluir {nomeVeiculo(veiculo)} definitivamente?</strong> Só é possível se ele não tiver
+            leituras de odômetro nem ordens de serviço.
+          </span>
+          <Botao variante="contorno" onClick={() => setConfirmarExclusao(false)}>Não</Botao>
+          <Botao variante="perigo" icone={Trash2} carregando={excluindo} onClick={excluir}>Sim, excluir</Botao>
+        </div>
+      ) : (
         <>
+          {editando && aoExcluir && (
+            <Botao variante="perigo-suave" icone={Trash2} className="modal__rodape-esquerda"
+              onClick={() => setConfirmarExclusao(true)}>
+              Excluir veículo
+            </Botao>
+          )}
           <Botao variante="contorno" onClick={aoFechar}>Cancelar</Botao>
           <Botao type="submit" icone={Check} carregando={f.enviando}>Salvar veículo</Botao>
         </>
-      }>
+      )}>
       <Aviso tipo="erro">{f.erroGeral}</Aviso>
       <div className="grade grade--2">
         <Campo rotulo="Identificação do veículo" placeholder="Ex.: Guincho 04" value={f.valores.identificacao}

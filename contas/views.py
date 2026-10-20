@@ -4,20 +4,19 @@ Views = o que acontece quando uma rota é chamada (os "controllers").
 Fluxo de toda requisição:
   rota (urls.py) -> autenticação JWT -> permissão -> view -> serializer -> banco
 """
+from drf_spectacular.utils import extend_schema
 from rest_framework import generics, mixins, status, viewsets
 from rest_framework.exceptions import ValidationError
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
-from rest_framework_simplejwt.tokens import RefreshToken
 
 from .models import Empresa, Situacao, Usuario
 from .permissoes import SomenteGestor
-from .serializers import EmpresaSerializer, RegistrarSerializer, UsuarioSerializer
-
-
-def gerar_tokens(usuario):
-    refresh = RefreshToken.for_user(usuario)
-    return {"access": str(refresh.access_token), "refresh": str(refresh)}
+from .serializers import (
+    EmpresaSerializer, MeuPerfilSerializer, RegistrarSerializer, TokensSerializer, TrocarSenhaSerializer,
+    UsuarioSerializer,
+)
+from .sessao import gerar_tokens, revogar_sessoes
 
 
 class RegistrarView(generics.GenericAPIView):
@@ -38,12 +37,40 @@ class RegistrarView(generics.GenericAPIView):
 
 
 class MeView(generics.RetrieveAPIView):
-    """GET /api/auth/me — dados do usuário dono do token, gestor ou motorista (RF38)."""
+    """
+    GET /api/auth/me — dados do usuário dono do token, gestor ou motorista (RF38).
+    PATCH /api/auth/me — o gestor muda o próprio nome. E-mail, perfil e situação não mudam por aqui.
+    """
 
     serializer_class = UsuarioSerializer
 
     def get_object(self):
         return self.request.user
+
+    @extend_schema(request=MeuPerfilSerializer, responses=UsuarioSerializer)
+    def patch(self, request):
+        perfil = MeuPerfilSerializer(request.user, data=request.data, partial=True)
+        perfil.is_valid(raise_exception=True)
+        perfil.save()
+        return Response(UsuarioSerializer(request.user).data)
+
+
+class TrocarSenhaView(generics.GenericAPIView):
+    """
+    POST /api/auth/senha — troca a própria senha, informando a atual (gestor ou motorista).
+    Todas as sessões abertas da conta caem; esta recebe tokens novos para continuar.
+    """
+
+    serializer_class = TrocarSenhaSerializer
+
+    @extend_schema(responses=TokensSerializer)
+    def post(self, request):
+        troca = self.get_serializer(data=request.data)
+        troca.is_valid(raise_exception=True)
+        request.user.set_password(troca.validated_data["nova_senha"])
+        request.user.save(update_fields=["password"])
+        revogar_sessoes(request.user)
+        return Response(gerar_tokens(request.user))
 
 
 class EmpresaViewSet(

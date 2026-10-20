@@ -1,4 +1,3 @@
-import { useEffect } from "react";
 import { Check, Gauge } from "lucide-react";
 
 import { post } from "../../api/client";
@@ -8,15 +7,13 @@ import { km, nomeVeiculo } from "../../lib/formato";
 import { useFormulario } from "../../lib/useFormulario";
 
 /** Registrar quilometragem (gestor). Só o gestor pode marcar ajuste de odômetro (RN03, CA03). */
-export default function LeituraModal({ aberto, veiculo, aoFechar, aoSalvar }) {
+export default function LeituraModal({ aberto, ...props }) {
+  // O formulário só existe com a janela aberta: cada abertura começa do zero, com os dados certos
+  return aberto ? <JanelaLeitura {...props} /> : null;
+}
+
+function JanelaLeitura({ veiculo, aoFechar, aoSalvar }) {
   const f = useFormulario({ quilometragem: "", ajuste: false });
-  const { setValores, setErros, setErroGeral } = f;
-  useEffect(() => {
-    if (!aberto) return;
-    setValores({ quilometragem: "", ajuste: false });
-    setErros({});
-    setErroGeral("");
-  }, [aberto, setValores, setErros, setErroGeral]);
 
   const aoEnviar = f.enviar(async (v) => {
     await post("/leituras-odometro", {
@@ -28,7 +25,7 @@ export default function LeituraModal({ aberto, veiculo, aoFechar, aoSalvar }) {
   });
 
   return (
-    <Modal aberto={aberto} aoFechar={aoFechar} aoEnviar={aoEnviar} largura={520}
+    <Modal aberto aoFechar={aoFechar} aoEnviar={aoEnviar} largura={520}
       migalha={<><Gauge size={13} /> Odômetro</>} titulo="Registrar quilometragem"
       subtitulo={veiculo && `${nomeVeiculo(veiculo)} · última leitura: ${km(veiculo.km_atual)}. A data é a de hoje.`}
       rodape={

@@ -7,7 +7,7 @@ import { useFormulario } from "../lib/useFormulario";
 
 /** Login único: o sistema identifica o perfil pela conta e leva cada um à sua área (RF04). */
 export default function Login() {
-  const { entrar } = useAuth();
+  const { entrar, motivoSaida } = useAuth();
   const navegar = useNavigate();
   const { state } = useLocation();
   const f = useFormulario({ email: "", senha: "" });
@@ -26,6 +26,7 @@ export default function Login() {
       </div>
       <form className="entrada__cartao" onSubmit={aoEnviar} noValidate>
         <h1 className="entrada__titulo">Entrar</h1>
+        {!f.erroGeral && <Aviso tipo="info">{motivoSaida}</Aviso>}
         <Aviso tipo="erro">{f.erroGeral}</Aviso>
         <Campo rotulo="E-mail" type="email" autoComplete="email" required value={f.valores.email}
           onChange={f.mudar("email")} erro={f.erros.email} />

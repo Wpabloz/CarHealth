@@ -111,6 +111,11 @@ small { font-size: 0.85em; }
 .barra__conta-perfil { font-size: 12px; color: var(--texto-3); }
 .avatar { display: inline-flex; align-items: center; justify-content: center; width: 36px; height: 36px; border-radius: 50%; background: linear-gradient(135deg, var(--laranja), #ffb27a); color: #fff; font-weight: 700; font-family: var(--fonte-titulo); flex: none; }
 .avatar--p { width: 30px; height: 30px; font-size: 13px; }
+.avatar--g { width: 64px; height: 64px; font-size: 26px; }
+.perfil__topo { display: flex; align-items: center; gap: 16px; padding-bottom: 18px; margin-bottom: 18px; border-bottom: 1px solid var(--borda); }
+.perfil__nome { font-size: 22px; font-weight: 800; }
+.perfil__papel { display: inline-block; margin-top: 4px; padding: 3px 10px; border-radius: 999px; background: var(--superficie-media); color: var(--marinho); font-size: 12px; font-weight: 700; }
+.grupo__titulo { display: flex; align-items: center; gap: 8px; }
 .principal { width: 100%; max-width: 1180px; padding: 28px 32px 48px; }
 
 /* ---------- Notificações (sino) ---------- */
@@ -146,6 +151,8 @@ small { font-size: 0.85em; }
 .botao--suave { background: var(--superficie-media); color: var(--marinho); }
 .botao--suave:hover:not(:disabled) { background: var(--superficie-alta); }
 .botao--perigo { background: var(--perigo); color: #fff; }
+.botao--perigo-suave { background: var(--perigo-fundo); color: var(--perigo); border-color: var(--perigo-claro); }
+.botao--perigo-suave:hover:not(:disabled) { background: var(--perigo-claro); }
 .botao--fantasma { background: transparent; color: var(--texto-2); }
 .botao--fantasma:hover:not(:disabled) { background: var(--superficie-baixa); color: var(--texto); }
 .botao--icone { min-height: 34px; width: 34px; padding: 0; background: transparent; color: var(--texto-2); }
@@ -281,7 +288,10 @@ textarea.campo__entrada { resize: vertical; min-height: 84px; }
 .modal__fechar { position: absolute; top: 18px; right: 18px; display: inline-flex; padding: 6px; border: 0; border-radius: 50%; background: transparent; color: var(--texto-2); cursor: pointer; }
 .modal__fechar:hover { background: var(--superficie-baixa); }
 .modal__corpo { padding: 16px 28px 8px; overflow-y: auto; }
-.modal__rodape { display: flex; justify-content: flex-end; gap: 10px; padding: 16px 28px; background: var(--superficie-baixa); }
+.modal__rodape { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 10px; padding: 16px 28px; background: var(--superficie-baixa); }
+.modal__rodape-esquerda { margin-right: auto; }
+.confirmacao--rodape { width: 100%; justify-content: flex-end; }
+.confirmacao--rodape > span { flex: 1 1 260px; color: var(--perigo-texto); }
 
 /* ---------- Abas em pílula ---------- */
 .segmentado { display: inline-flex; flex-wrap: wrap; gap: 4px; padding: 5px; background: var(--superficie); border-radius: 12px; box-shadow: var(--sombra); margin-bottom: 14px; }

@@ -5,12 +5,14 @@ Eles dizem quais campos entram/saem da API e validam os dados recebidos.
 Os nomes das chaves no JSON seguem as colunas do banco (ex.: cnpj_empresa).
 """
 from django.contrib.auth.password_validation import validate_password
+from django.core.exceptions import ValidationError as ErroDjango
 from rest_framework import serializers
 from rest_framework.validators import UniqueValidator
 
 from frota.models import Motorista
 
 from .models import Empresa, Usuario
+from .sessao import revogar_sessoes
 
 
 class DaEmpresaField(serializers.PrimaryKeyRelatedField):
@@ -83,12 +85,57 @@ class UsuarioSerializer(serializers.ModelSerializer):
         senha = dados.pop("password", None)
         if senha:
             usuario.set_password(senha)  # o gestor pode redefinir a senha
+            revogar_sessoes(usuario)  # e as sessões abertas dessa conta caem
         return super().update(usuario, dados)
 
     def to_representation(self, usuario):
         dados = super().to_representation(usuario)
         dados["nome"] = usuario.nome_exibicao if usuario.is_motorista else usuario.nome
         return dados
+
+
+class MeuPerfilSerializer(serializers.ModelSerializer):
+    """PATCH /auth/me: o gestor muda o próprio nome. O nome do motorista vem do cadastro dele."""
+
+    class Meta:
+        model = Usuario
+        fields = ["nome"]
+
+    def validate_nome(self, valor):
+        if self.instance.is_motorista:
+            raise serializers.ValidationError(
+                "O nome do motorista é alterado pelo gestor, no cadastro do motorista.")
+        if not (valor or "").strip():
+            raise serializers.ValidationError("Informe o nome.")
+        return valor.strip()
+
+
+class TrocarSenhaSerializer(serializers.Serializer):
+    """POST /auth/senha: troca a própria senha, confirmando a atual (gestor ou motorista)."""
+
+    senha_atual = serializers.CharField(write_only=True)
+    nova_senha = serializers.CharField(write_only=True)
+
+    def validate_senha_atual(self, valor):
+        if not self.context["request"].user.check_password(valor):
+            raise serializers.ValidationError("Senha atual incorreta.")
+        return valor
+
+    def validate(self, dados):
+        if dados["nova_senha"] == dados["senha_atual"]:
+            raise serializers.ValidationError({"nova_senha": "A nova senha precisa ser diferente da atual."})
+        try:
+            validate_password(dados["nova_senha"], self.context["request"].user)
+        except ErroDjango as erro:
+            raise serializers.ValidationError({"nova_senha": list(erro.messages)}) from erro
+        return dados
+
+
+class TokensSerializer(serializers.Serializer):
+    """Par de tokens devolvido no login, no cadastro e na troca de senha (documentação)."""
+
+    access = serializers.CharField()
+    refresh = serializers.CharField()
 
 
 class EmpresaCadastroSerializer(serializers.ModelSerializer):

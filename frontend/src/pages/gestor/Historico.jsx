@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link, Navigate, useLocation, useParams } from "react-router-dom";
+import { Link, Navigate, useLocation, useNavigate, useParams } from "react-router-dom";
 import {
   AlarmClock, Calendar, CircleCheck, ClipboardList, Filter, Gauge, History, Pencil, Plus, Receipt, ShieldCheck,
   TrendingUp, Truck, Wrench,
@@ -41,6 +41,7 @@ export function HistoricoInicio() {
 export default function Historico() {
   const { placa } = useParams();
   const { state } = useLocation();
+  const navegar = useNavigate();
   const { painel, recarregarPainel } = useResumo();
   const todos = useCarregar(() => get("/veiculos"), []);
   const veiculo = useCarregar(() => get(`/veiculos/${placa}`), [placa]);
@@ -210,7 +211,11 @@ export default function Historico() {
             <LeituraModal aberto={modal === "leitura"} veiculo={v} aoFechar={() => setModal("")}
               aoSalvar={() => atualizar("Quilometragem registrada.")} />
             <VeiculoModal aberto={modal === "veiculo"} veiculo={v} aoFechar={() => setModal("")}
-              aoSalvar={() => atualizar("Veículo atualizado.")} />
+              aoSalvar={() => atualizar("Veículo atualizado.")}
+              aoExcluir={(x) => {
+                recarregarPainel();
+                navegar("/veiculos", { replace: true, state: { aviso: `${nomeVeiculo(x)} excluído.` } });
+              }} />
           </>
         )}
       </Conteudo>
