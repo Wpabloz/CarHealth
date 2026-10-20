@@ -104,8 +104,16 @@ SPECTACULAR_SETTINGS = {
     "TITLE": "CarHealth API",
     "DESCRIPTION": "API do CarHealth para gestão de manutenção de frotas.",
     "VERSION": "0.3.0",
-    "ENUM_NAME_OVERRIDES": {"SituacaoEnum": "contas.models.Situacao"},
+    "ENUM_NAME_OVERRIDES": {
+        "SituacaoEnum": "contas.models.Situacao",
+        "SituacaoManutencaoEnum": "frota.manutencao.SituacaoManutencao",
+    },
 }
+
+# Faixa de "próxima do vencimento" (RN08). Padrão adotado pela equipe na Sprint 3;
+# fica na configuração, e não no código das regras (Cap. 4, Quadro 16).
+TOLERANCIA_KM = int(os.getenv("TOLERANCIA_KM", "1000"))
+TOLERANCIA_DIAS = int(os.getenv("TOLERANCIA_DIAS", "30"))
 
 # Endereços do frontend que podem chamar a API (separados por vírgula no .env)
 CORS_ALLOWED_ORIGINS = [

@@ -14,7 +14,13 @@ from rest_framework.validators import UniqueValidator
 from contas.models import Situacao, Usuario
 from contas.serializers import DaEmpresaField, chave_nao_muda
 
+from .manutencao import SituacaoManutencao
 from .models import LeituraOdometro, Motorista, OrdemServico, PlanoManutencao, Veiculo
+
+
+def formatar_km(valor):
+    """91200 -> "91.200 km", como o usuário lê no painel do veículo."""
+    return f"{valor:,} km".replace(",", ".")
 
 
 class OcultaDoMotorista:
@@ -91,10 +97,25 @@ class MotoristaSerializer(serializers.ModelSerializer):
 class VeiculoSerializer(serializers.ModelSerializer):
     cnpj_empresa = serializers.CharField(source="empresa_id", read_only=True)
     km_atual = serializers.IntegerField(read_only=True, allow_null=True)  # null = "sem registro"
+    # Só no cadastro: vira a primeira leitura de odômetro, em nome de quem cadastrou
+    quilometragem_inicial = serializers.IntegerField(write_only=True, required=False, min_value=0)
 
     class Meta:
         model = Veiculo
-        fields = ["placa", "marca", "modelo", "ano", "tipo", "situacao", "cnpj_empresa", "km_atual"]
+        fields = ["placa", "identificacao", "marca", "modelo", "ano", "tipo", "situacao", "observacoes",
+                  "cnpj_empresa", "km_atual", "quilometragem_inicial"]
+
+    def create(self, dados):
+        km = dados.pop("quilometragem_inicial", None)
+        veiculo = super().create(dados)
+        if km is not None:
+            LeituraOdometro.objects.create(veiculo=veiculo, quilometragem=km, data_leitura=timezone.localdate(),
+                                           usuario=self.context["request"].user)
+        return veiculo
+
+    def update(self, veiculo, dados):
+        dados.pop("quilometragem_inicial", None)  # depois do cadastro, a km muda só por leitura
+        return super().update(veiculo, dados)
 
     def validate_placa(self, valor):
         valor = valor.upper().replace("-", "")
@@ -102,6 +123,9 @@ class VeiculoSerializer(serializers.ModelSerializer):
 
     def validate_tipo(self, valor):
         return valor.strip().upper()
+
+    def validate_identificacao(self, valor):
+        return (valor or "").strip() or None
 
 
 class PlanoManutencaoSerializer(serializers.ModelSerializer):
@@ -166,7 +190,7 @@ class LeituraOdometroSerializer(OcultaDoMotorista, serializers.ModelSerializer):
             dica = (" Confira o valor ou avise o gestor." if usuario.is_motorista
                     else " Em troca ou zeragem do odômetro, use a origem AJUSTE_ODOMETRO.")
             raise serializers.ValidationError({"quilometragem":
-                f"Menor que a última leitura registrada ({anterior.quilometragem} km).{dica}"})
+                f"Menor que a última leitura registrada ({formatar_km(anterior.quilometragem)}).{dica}"})
         return dados
 
 
@@ -221,11 +245,78 @@ class ConclusaoSerializer(serializers.Serializer):
 
     def validate(self, dados):
         ordem = self.context["ordem"]
+        if ordem is None:  # a abertura já foi recusada; só os campos são conferidos
+            return dados
         if dados["data_conclusao"] < ordem.data_abertura:
             raise serializers.ValidationError(
                 {"data_conclusao": "A conclusão não pode ser antes da abertura."})
         ultima = ordem.veiculo.ultima_leitura
         if ultima and dados["quilometragem"] < ultima.quilometragem:
             raise serializers.ValidationError({"quilometragem":
-                f"Menor que a última leitura registrada ({ultima.quilometragem} km)."})
+                f"Menor que a última leitura registrada ({formatar_km(ultima.quilometragem)})."})
         return dados
+
+
+class RealizadaSerializer(serializers.Serializer):
+    """Corpo de POST /ordens-servico/realizada (documentação): dados da ordem e da conclusão juntos."""
+
+    placa_veiculo = serializers.CharField()
+    id_plano = serializers.IntegerField(required=False, allow_null=True)
+    descricao = serializers.CharField(max_length=255)
+    oficina = serializers.CharField(max_length=120, required=False, allow_blank=True, allow_null=True)
+    data_conclusao = serializers.DateField()
+    quilometragem = serializers.IntegerField(min_value=0)
+    valor = serializers.DecimalField(max_digits=10, decimal_places=2, min_value=Decimal("0"))
+
+
+# ---------------------------------------------------------------------------
+# Situação de manutenção (somente leitura): descrevem as respostas calculadas
+# em frota/manutencao.py, para a documentação do Swagger.
+# ---------------------------------------------------------------------------
+class ExecucaoSerializer(serializers.Serializer):
+    numero = serializers.IntegerField(help_text="Número da ordem concluída que serve de base.")
+    data = serializers.DateField()
+    quilometragem = serializers.IntegerField(allow_null=True)
+
+
+class SituacaoPlanoSerializer(serializers.Serializer):
+    id_plano = serializers.IntegerField()
+    descricao = serializers.CharField()
+    intervalo_km = serializers.IntegerField(allow_null=True)
+    intervalo_meses = serializers.IntegerField(allow_null=True)
+    ultima_execucao = ExecucaoSerializer(allow_null=True)
+    km_previsto = serializers.IntegerField(allow_null=True)
+    km_restante = serializers.IntegerField(allow_null=True, help_text="Negativo = passou da km prevista.")
+    data_prevista = serializers.DateField(allow_null=True)
+    dias_restantes = serializers.IntegerField(allow_null=True, help_text="Negativo = passou da data prevista.")
+    situacao = serializers.ChoiceField(choices=SituacaoManutencao.choices)
+
+
+class SituacaoVeiculoSerializer(serializers.Serializer):
+    placa = serializers.CharField()
+    identificacao = serializers.CharField(allow_null=True)
+    marca = serializers.CharField()
+    modelo = serializers.CharField()
+    tipo = serializers.CharField()
+    observacoes = serializers.CharField(allow_null=True)
+    km_atual = serializers.IntegerField(allow_null=True)
+    situacao = serializers.ChoiceField(choices=SituacaoManutencao.choices, help_text="A pior entre os planos.")
+    planos = SituacaoPlanoSerializer(many=True)
+
+
+class PendenciaSerializer(SituacaoPlanoSerializer):
+    placa = serializers.CharField()
+    identificacao = serializers.CharField(allow_null=True)
+    marca = serializers.CharField()
+    modelo = serializers.CharField()
+    km_atual = serializers.IntegerField(allow_null=True)
+
+
+class PainelSerializer(serializers.Serializer):
+    contagem = serializers.DictField(child=serializers.IntegerField(),
+                                     help_text="Veículos ativos por situação; cada veículo conta uma vez.")
+    pendencias = PendenciaSerializer(many=True, help_text="Vencidas primeiro, depois as próximas.")
+    veiculos = SituacaoVeiculoSerializer(many=True, help_text="Cada veículo ativo, com a situação dos seus planos.")
+    realizadas_no_mes = serializers.IntegerField(help_text="Ordens concluídas no mês atual.")
+    tolerancia = serializers.DictField(child=serializers.IntegerField(),
+                                       help_text='Faixa de "próxima do vencimento": {"km": 1000, "dias": 30}.')

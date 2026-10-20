@@ -624,7 +624,7 @@
         "value": "application/json"
        }
       ],
-      "description": "",
+      "description": "identificacao, observacoes e quilometragem_inicial são opcionais. A quilometragem vira a primeira leitura.",
       "url": {
        "raw": "http://127.0.0.1:8000/api/veiculos",
        "protocol": "http",
@@ -642,7 +642,7 @@
       },
       "body": {
        "mode": "raw",
-       "raw": "{\n  \"placa\": \"QWE1A23\",\n  \"marca\": \"Mercedes-Benz\",\n  \"modelo\": \"Accelo 1016\",\n  \"ano\": 2021,\n  \"tipo\": \"GUINCHO\"\n}",
+       "raw": "{\n  \"placa\": \"QWE1A23\",\n  \"identificacao\": \"Guincho 01\",\n  \"marca\": \"Mercedes-Benz\",\n  \"modelo\": \"Accelo 1016\",\n  \"ano\": 2021,\n  \"tipo\": \"GUINCHO\",\n  \"observacoes\": \"Plataforma hidráulica asa-delta\",\n  \"quilometragem_inicial\": 44000\n}",
        "options": {
         "raw": {
          "language": "json"
@@ -809,7 +809,7 @@
       },
       "body": {
        "mode": "raw",
-       "raw": "{\n  \"placa\": \"QWE1A23\",\n  \"marca\": \"Mercedes-Benz\",\n  \"modelo\": \"Accelo 1016\",\n  \"ano\": 2021,\n  \"tipo\": \"GUINCHO\",\n  \"situacao\": \"ATIVO\"\n}",
+       "raw": "{\n  \"placa\": \"QWE1A23\",\n  \"identificacao\": \"Guincho 01\",\n  \"marca\": \"Mercedes-Benz\",\n  \"modelo\": \"Accelo 1016\",\n  \"ano\": 2021,\n  \"tipo\": \"GUINCHO\",\n  \"situacao\": \"ATIVO\",\n  \"observacoes\": \"Plataforma hidráulica asa-delta\"\n}",
        "options": {
         "raw": {
          "language": "json"
@@ -1548,6 +1548,55 @@
        ]
       }
      }
+    },
+    {
+     "name": "Registrar serviço já realizado",
+     "request": {
+      "method": "POST",
+      "header": [
+       {
+        "key": "Content-Type",
+        "value": "application/json"
+       }
+      ],
+      "description": "Abre e conclui a ordem de uma vez, com a leitura de odômetro. Se algo for recusado, nada é gravado.",
+      "url": {
+       "raw": "http://127.0.0.1:8000/api/ordens-servico/realizada",
+       "protocol": "http",
+       "host": [
+        "127",
+        "0",
+        "0",
+        "1"
+       ],
+       "port": "8000",
+       "path": [
+        "api",
+        "ordens-servico",
+        "realizada"
+       ]
+      },
+      "body": {
+       "mode": "raw",
+       "raw": "{\n  \"placa_veiculo\": \"QWE1A23\",\n  \"descricao\": \"Troca da lâmpada do giroflex\",\n  \"data_conclusao\": \"{{hoje}}\",\n  \"quilometragem\": 320,\n  \"valor\": \"45.00\",\n  \"oficina\": \"Auto Elétrica Sol\"\n}",
+       "options": {
+        "raw": {
+         "language": "json"
+        }
+       }
+      }
+     },
+     "event": [
+      {
+       "listen": "prerequest",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.collectionVariables.set('hoje', new Date().toISOString().slice(0, 10));"
+        ]
+       }
+      }
+     ]
     }
    ]
   },

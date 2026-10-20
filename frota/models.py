@@ -1,6 +1,7 @@
 from django.conf import settings
 from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
+from django.db.models import F
 
 from contas.models import Empresa, Situacao
 from contas.validators import validar_cpf, validar_placa
@@ -29,6 +30,10 @@ class Motorista(models.Model):
         return self.nome
 
 
+# Veículos aparecem pelo nome da equipe ("Guincho 01", "Guincho 02"...); sem nome, pela placa
+ORDEM_DOS_VEICULOS = (F("identificacao").asc(nulls_last=True), "placa")
+
+
 class Veiculo(models.Model):
     placa = models.CharField(max_length=8, primary_key=True, validators=[validar_placa])
     marca = models.CharField(max_length=50)
@@ -36,6 +41,9 @@ class Veiculo(models.Model):
     ano = models.IntegerField(validators=[MinValueValidator(1950), MaxValueValidator(2100)])
     # Texto livre (ex.: GUINCHO, CAMINHAO); precisa ser igual ao tipo_veiculo do plano
     tipo = models.CharField(max_length=30)
+    # Nome usado pela equipe (ex.: "Guincho 01") e equipamentos instalados. Opcionais.
+    identificacao = models.CharField("identificação", max_length=30, null=True, blank=True)
+    observacoes = models.CharField("observações", max_length=255, null=True, blank=True)
     situacao = models.CharField(
         "situação", max_length=20, choices=Situacao.choices, default=Situacao.ATIVO
     )

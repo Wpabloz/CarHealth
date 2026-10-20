@@ -16,13 +16,15 @@ from django.utils import timezone
 from drf_spectacular.utils import extend_schema
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
+from rest_framework.exceptions import ValidationError
 from rest_framework.response import Response
+from rest_framework.views import APIView
 
 from contas.models import Empresa, Situacao
-from contas.permissoes import PermissaoPorPerfil
+from contas.permissoes import PermissaoPorPerfil, SomenteGestor
 
-from . import serializers
-from .models import LeituraOdometro, Motorista, OrdemServico, PlanoManutencao, Veiculo
+from . import manutencao, serializers
+from .models import ORDEM_DOS_VEICULOS, LeituraOdometro, Motorista, OrdemServico, PlanoManutencao, Veiculo
 
 
 class DaEmpresaViewSet(viewsets.ModelViewSet):
@@ -67,12 +69,20 @@ class MotoristaViewSet(DaEmpresaViewSet):
 
 
 class VeiculoViewSet(DaEmpresaViewSet):
-    queryset = Veiculo.objects.all()
+    queryset = Veiculo.objects.order_by(*ORDEM_DOS_VEICULOS)
     serializer_class = serializers.VeiculoSerializer
     # ?placa=ABC busca por parte da placa (RF10, RF34)
     filtros = {"situacao": "situacao", "tipo": "tipo__iexact", "placa": "placa__icontains"}
-    acoes_motorista = ("list", "retrieve")
+    acoes_motorista = ("list", "retrieve", "situacao")
     filtro_motorista = {"situacao": Situacao.ATIVO}  # o motorista só vê veículos ativos (RF34)
+
+    @extend_schema(responses=serializers.SituacaoVeiculoSerializer)
+    @action(detail=True, methods=["get"])
+    def situacao(self, request, pk=None):
+        """GET /api/veiculos/{placa}/situacao — situação de cada manutenção prevista (RF19, RF20)."""
+        veiculo = self.get_object()
+        dados = manutencao.calcular(request.user.empresa, Veiculo.objects.filter(pk=veiculo.pk))[0]
+        return Response(serializers.SituacaoVeiculoSerializer(dados).data)
 
     @extend_schema(responses={200: {"type": "array", "items": {"type": "string"}}})
     @action(detail=False, methods=["get"])
@@ -120,11 +130,30 @@ class OrdemServicoViewSet(DaEmpresaViewSet):
     # o motorista vê só o histórico (ordens concluídas) dos veículos ativos, sem valores (RF36)
     filtro_motorista = {"veiculo__situacao": Situacao.ATIVO, "status": OrdemServico.Status.CONCLUIDA}
 
-    def perform_create(self, serializer):
+    def proximo_numero(self):
         # Trava a linha da empresa: duas aberturas ao mesmo tempo não recebem o mesmo número
         empresa = Empresa.objects.select_for_update().get(pk=self.request.user.empresa_id)
         ultimo = OrdemServico.objects.filter(veiculo__empresa=empresa).aggregate(m=Max("numero"))["m"]
-        serializer.save(emitente=self.request.user, numero=(ultimo or 0) + 1)
+        return (ultimo or 0) + 1
+
+    def perform_create(self, serializer):
+        serializer.save(emitente=self.request.user, numero=self.proximo_numero())
+
+    def gravar_conclusao(self, ordem, dados):
+        """Conclui a ordem e grava a leitura de odômetro: ou as duas, ou nenhuma (RN09)."""
+        with transaction.atomic():
+            for campo, valor in dados.items():
+                setattr(ordem, campo, valor)
+            ordem.status = OrdemServico.Status.CONCLUIDA
+            ordem.save()
+            LeituraOdometro.objects.create(
+                veiculo=ordem.veiculo,
+                data_leitura=ordem.data_conclusao,
+                quilometragem=ordem.quilometragem,
+                origem=LeituraOdometro.Origem.ORDEM_SERVICO,
+                usuario=self.request.user,
+            )
+        return ordem
 
     @extend_schema(request=serializers.ConclusaoSerializer, responses=serializers.OrdemServicoSerializer)
     @action(detail=True, methods=["post"])
@@ -136,20 +165,31 @@ class OrdemServicoViewSet(DaEmpresaViewSet):
                             status=status.HTTP_400_BAD_REQUEST)
         conclusao = serializers.ConclusaoSerializer(data=request.data, context={"ordem": ordem})
         conclusao.is_valid(raise_exception=True)
+        return Response(self.get_serializer(self.gravar_conclusao(ordem, conclusao.validated_data)).data)
 
-        with transaction.atomic():  # ou grava a ordem e a leitura, ou nenhuma das duas
-            for campo, valor in conclusao.validated_data.items():
-                setattr(ordem, campo, valor)
-            ordem.status = OrdemServico.Status.CONCLUIDA
-            ordem.save()
-            LeituraOdometro.objects.create(
-                veiculo=ordem.veiculo,
-                data_leitura=ordem.data_conclusao,
-                quilometragem=ordem.quilometragem,
-                origem=LeituraOdometro.Origem.ORDEM_SERVICO,
-                usuario=request.user,
-            )
-        return Response(self.get_serializer(ordem).data)
+    @extend_schema(request=serializers.RealizadaSerializer, responses={201: serializers.OrdemServicoSerializer})
+    @action(detail=False, methods=["post"])
+    def realizada(self, request):
+        """
+        POST /api/ordens-servico/realizada — registra um serviço que já foi feito: abre e conclui
+        a ordem de uma vez, com a leitura de odômetro. Se algo for recusado, nada é gravado.
+        """
+        dados = request.data.copy()
+        if not dados.get("data_abertura") and dados.get("data_conclusao"):
+            dados["data_abertura"] = dados["data_conclusao"]  # serviço feito: abriu e concluiu no mesmo dia
+        abertura = self.get_serializer(data=dados)
+        abertura_ok = abertura.is_valid()
+        provisoria = (OrdemServico(veiculo=abertura.validated_data["veiculo"],
+                                   data_abertura=abertura.validated_data["data_abertura"]) if abertura_ok else None)
+        conclusao = serializers.ConclusaoSerializer(data=request.data, context={"ordem": provisoria})
+        conclusao_ok = conclusao.is_valid()
+        if not (abertura_ok and conclusao_ok):  # devolve os erros das duas partes de uma vez
+            raise ValidationError({**(conclusao.errors if not conclusao_ok else {}),
+                                   **(abertura.errors if not abertura_ok else {})})
+        with transaction.atomic():
+            ordem = abertura.save(emitente=request.user, numero=self.proximo_numero())
+            self.gravar_conclusao(ordem, conclusao.validated_data)
+        return Response(self.get_serializer(ordem).data, status=status.HTTP_201_CREATED)
 
     @extend_schema(request=None)
     @action(detail=True, methods=["post"])
@@ -162,3 +202,13 @@ class OrdemServicoViewSet(DaEmpresaViewSet):
         ordem.status = OrdemServico.Status.CANCELADA
         ordem.save()
         return Response(self.get_serializer(ordem).data)
+
+
+class PainelView(APIView):
+    """GET /api/painel — contagem de veículos ativos por situação e pendências da frota (RF21, RF32)."""
+
+    permission_classes = [SomenteGestor]
+
+    @extend_schema(responses=serializers.PainelSerializer)
+    def get(self, request):
+        return Response(serializers.PainelSerializer(manutencao.painel(request.user.empresa)).data)

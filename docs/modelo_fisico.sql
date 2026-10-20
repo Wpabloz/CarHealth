@@ -51,6 +51,8 @@ CREATE TABLE veiculo (
     tipo          varchar(30) NOT NULL,
     situacao      varchar(20) NOT NULL,
     cnpj_empresa  varchar(14) NOT NULL,
+    identificacao varchar(30),             -- nome usado pela equipe, ex.: "Guincho 01" (protótipo)
+    observacoes   varchar(255),            -- equipamentos instalados e outras informações (protótipo)
     CONSTRAINT pk_veiculo PRIMARY KEY (placa)
 );
 

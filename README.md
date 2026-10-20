@@ -1,6 +1,6 @@
 # CarHealth — Backend (API REST)
 
-Sistema de manutenção de frotas. Este repositório é **só o backend**: uma API REST que recebe e responde **JSON**. As telas são feitas no Figma e o frontend vai consumir esta API.
+Sistema de manutenção de frotas. Este repositório tem o **backend** (API REST em Django, na raiz) e o **frontend** (React, na pasta `frontend/`), separados: o frontend só conversa com a API, enviando e recebendo **JSON**.
 
 **Tecnologias:** Python 3.11+ · Django 5.2 · Django REST Framework · PostgreSQL 16 · JWT (login por token) · bcrypt (senhas)
 
@@ -63,10 +63,12 @@ CarHealth/
 │   ├── migrations/
 │   └── tests.py
 │
-└── docs/
-    ├── CarHealth.postman_collection.json   # todas as chamadas prontas (Postman/Thunder Client)
-    ├── capitulo4_banco_de_dados.md         # texto do Dossiê da Sprint 2 (ver Capítulo 4 v2)
-    └── modelo_fisico.sql                   # script do banco (igual às migrações)
+├── docs/
+│   ├── CarHealth.postman_collection.json   # todas as chamadas prontas (Postman/Thunder Client)
+│   ├── capitulo4_banco_de_dados.md         # texto do Dossiê da Sprint 2 (ver Capítulo 4 v2)
+│   └── modelo_fisico.sql                   # script do banco (igual às migrações)
+│
+└── frontend/                  # TELAS em React (projeto Node separado; ver frontend/README.md)
 ```
 
 ### Models = tabelas do banco
@@ -189,13 +191,16 @@ Cada recurso tem as 5 rotas padrão:
 | `/empresas` 🔒 | CNPJ | — | Só a própria empresa. Listar e ver; editar é 👑. É criada no `/auth/registrar`. |
 | `/usuarios` 👑 | e-mail | — | Gestor cadastra, edita e inativa contas (GESTOR ou MOTORISTA). |
 | `/motoristas` 👑 | CPF | `?situacao=` | Devolve `cnh_vencida` e `email_acesso`. Pode criar a conta do motorista junto (ver exemplo). |
-| `/veiculos` 🔒 | placa | `?placa=ABC` (busca) `?situacao=` `?tipo=` | Devolve `km_atual` (`null` = sem registro). Motorista: só listar/ver, e só os ativos. |
+| `/veiculos` 🔒 | placa | `?placa=ABC` (busca) `?situacao=` `?tipo=` | Devolve `km_atual` (`null` = sem registro), em ordem de `identificacao`. No cadastro, `quilometragem_inicial` vira a primeira leitura. Motorista: só listar/ver, e só os ativos. |
 | `/veiculos/tipos` 👑 | — | — | GET: tipos já usados pela empresa, para sugerir no cadastro. |
+| `/veiculos/{placa}/situacao` 🔒 | — | — | GET: situação de cada manutenção prevista (vencida, próxima, em dia). Motorista: só veículos ativos. |
+| `/painel` 👑 | — | — | GET: contagem de veículos ativos por situação e pendências, vencidas primeiro. |
 | `/planos-manutencao` 👑 | id_plano | `?tipo_veiculo=` `?situacao=` | Exige `intervalo_km`, `intervalo_meses` ou ambos. |
 | `/leituras-odometro` 🔒 | codigo | `?veiculo=<placa>` | Motorista: listar, ver e registrar. Data = hoje; responsável = quem está logado. |
 | `/ordens-servico` 🔒 | numero | `?veiculo=<placa>` `?status=` | Abrir e editar é 👑. Motorista vê só as concluídas, sem `valor`. **Sem DELETE**: cancele. |
 | `/ordens-servico/{numero}/concluir` 👑 | — | — | POST: conclui e gera a leitura de odômetro automaticamente. |
 | `/ordens-servico/{numero}/cancelar` 👑 | — | — | POST: cancela uma ordem ainda não concluída. |
+| `/ordens-servico/realizada` 👑 | — | — | POST: registra um serviço **já feito**: abre e conclui a ordem de uma vez, com a leitura. Se algo for recusado, nada é gravado. |
 
 **Por que a empresa não tem POST/DELETE próprios?** No modelo de dados, todo `usuario` pertence a uma `empresa` (`usuario.cnpj_empresa NOT NULL`). Por isso a empresa nasce junto com o primeiro usuário em `/auth/registrar`.
 
@@ -234,9 +239,10 @@ Conta de motorista pela rota de usuários (alternativa):
 ```json
 {"email": "joao@sueli.com", "perfil": "MOTORISTA", "cpf_motorista": "52998224725", "password": "CarHealth#2026"}
 ```
-Veículo:
+Veículo (`identificacao`, `observacoes` e `quilometragem_inicial` são opcionais):
 ```json
-{"placa": "QWE1A23", "marca": "Mercedes-Benz", "modelo": "Accelo 1016", "ano": 2021, "tipo": "GUINCHO"}
+{"placa": "QWE1A23", "identificacao": "Guincho 01", "marca": "Mercedes-Benz", "modelo": "Accelo 1016",
+ "ano": 2021, "tipo": "GUINCHO", "observacoes": "Plataforma hidráulica asa-delta", "quilometragem_inicial": 45200}
 ```
 Leitura de odômetro (gestor ou motorista):
 ```json
@@ -249,6 +255,11 @@ Abrir OS (sem `data_abertura`, vale a de hoje):
 Concluir OS:
 ```json
 {"data_conclusao": "2026-10-20", "quilometragem": 45100, "valor": "350.00", "oficina": "Oficina do Zé"}
+```
+Serviço já realizado (`POST /ordens-servico/realizada`, abertura e conclusão juntas):
+```json
+{"placa_veiculo": "QWE1A23", "id_plano": 1, "descricao": "Troca de óleo e filtro",
+ "data_conclusao": "2026-10-20", "quilometragem": 45100, "valor": "350.00", "oficina": "Oficina do Zé"}
 ```
 
 Valores aceitos:
@@ -285,9 +296,20 @@ Para testar à mão, sem a coleção: faça o login, copie o `access` da respost
 ```powershell
 python manage.py test
 ```
-Roda 38 testes: login, token, bcrypt, conta inativa, isolamento entre empresas, permissões de cada perfil, CRUDs e as regras de negócio (odômetro, numeração e conclusão da OS). Rode antes de cada `git push`.
+Roda 47 testes: login, token, bcrypt, conta inativa, isolamento entre empresas, permissões de cada perfil, CRUDs e as regras de negócio (odômetro, numeração e conclusão da OS, serviço já realizado, situação de manutenção). Rode antes de cada `git push`.
 
-## 8. Integração com o frontend
+## 8. Frontend (pasta `frontend/`)
+
+Com o backend ligado (`python manage.py runserver`), abra **outro terminal**:
+
+```powershell
+cd frontend
+npm install
+npm run dev
+```
+Abra **http://localhost:5173**. Precisa do **Node.js 20+** (<https://nodejs.org>). Detalhes e o mapa das telas em `frontend/README.md`.
+
+Para quem for fazer outro frontend ou integrar:
 
 - O frontend chama `http://127.0.0.1:8000/api/...` enviando e recebendo JSON.
 - Depois do login, guarde o `access` e envie em toda chamada: `Authorization: Bearer <token>`.

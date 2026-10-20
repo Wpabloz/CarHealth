@@ -1,3 +1,5 @@
+from datetime import date
+
 from django.utils import timezone
 from rest_framework.test import APITestCase
 
@@ -168,7 +170,7 @@ class LeituraTest(BaseTest):
         """CA02 e CA03: só o ajuste de odômetro aceita valor menor."""
         self.ler(91200)
         resp = self.ler(90000)
-        self.assertIn("91200 km", resp.data["quilometragem"][0])
+        self.assertIn("91.200 km", resp.data["quilometragem"][0])
         resp = self.ler(400, origem="AJUSTE_ODOMETRO")
         self.assertEqual(resp.status_code, 201, resp.data)
         self.assertEqual(self.client.get("/api/veiculos/ABC1D23").data["km_atual"], 400)
@@ -220,7 +222,7 @@ class OrdemServicoTest(BaseTest):
         resp = self.concluir(1)
         self.assertEqual(set(resp.data), {"data_conclusao", "quilometragem", "valor"})
         resp = self.concluir(1, data_conclusao="2026-09-03", quilometragem=90000, valor="350.00")
-        self.assertIn("91200 km", resp.data["quilometragem"][0])
+        self.assertIn("91.200 km", resp.data["quilometragem"][0])
 
         resp = self.concluir(1, data_conclusao="2026-09-03", quilometragem=91500,
                              valor="350.00", oficina="Oficina do Zé")
@@ -270,3 +272,153 @@ class OrdemServicoTest(BaseTest):
         self.assertEqual(self.client.post(f"{self.url}/2/cancelar").status_code, 403)
         self.assertEqual(self.concluir(2, data_conclusao="2026-09-03", quilometragem=100,
                                        valor="1").status_code, 403)
+
+
+class SituacaoManutencaoTest(BaseTest):
+    """RN05 a RN08 e RN19: situação calculada a cada consulta."""
+
+    def plano(self, **campos):
+        dados = {"descricao": "Óleo", "tipo_veiculo": "CAMINHAO", "empresa": self.empresa, **campos}
+        return PlanoManutencao.objects.create(**dados)
+
+    def executar(self, plano, km, data, veiculo=None, numero=1):
+        data = date.fromisoformat(data) if isinstance(data, str) else data
+        return OrdemServico.objects.create(
+            numero=numero, descricao="Revisão", data_abertura=data, data_conclusao=data, quilometragem=km,
+            status="CONCLUIDA", veiculo=veiculo or self.veiculo, plano=plano, emitente=self.gestor)
+
+    def calcular(self, plano, execucao, km_atual, hoje):
+        from .manutencao import calcular_plano
+        return calcular_plano(plano, execucao, km_atual, date.fromisoformat(hoje))
+
+    def test_criterio_de_km(self):
+        """CA05 e CA20: plano de 10.000 km executado com 82.000 km."""
+        plano = self.plano(intervalo_km=10000)
+        execucao = self.executar(plano, 82000, "2026-01-10")
+        self.assertEqual(self.calcular(plano, execucao, 93000, "2026-02-01")["situacao"], "VENCIDA")
+        proxima = self.calcular(plano, execucao, 91200, "2026-02-01")
+        self.assertEqual((proxima["situacao"], proxima["km_restante"]), ("PROXIMA", 800))
+        self.assertEqual(self.calcular(plano, execucao, 85000, "2026-02-01")["situacao"], "EM_DIA")
+
+    def test_criterio_de_meses_e_o_que_vencer_primeiro(self):
+        """CA06 e CA07."""
+        plano = self.plano(intervalo_meses=6, intervalo_km=10000)
+        execucao = self.executar(plano, 82000, "2026-03-15")
+        vencida = self.calcular(plano, execucao, 83000, "2026-09-20")  # km em dia, data vencida
+        self.assertEqual((vencida["situacao"], str(vencida["data_prevista"])), ("VENCIDA", "2026-09-15"))
+        self.assertEqual(self.calcular(plano, execucao, 83000, "2026-08-20")["situacao"], "PROXIMA")
+        self.assertEqual(self.calcular(plano, execucao, 83000, "2026-07-01")["situacao"], "EM_DIA")
+        sem_leitura = self.calcular(plano, execucao, None, "2026-07-01")  # RN19: km não se aplica
+        self.assertEqual((sem_leitura["km_restante"], sem_leitura["situacao"]), (None, "EM_DIA"))
+
+    def test_sem_execucao_e_sem_plano(self):
+        """CA09: veículo sem plano aplicável não gera pendência."""
+        resp = self.client.get("/api/veiculos/ABC1D23/situacao")
+        self.assertEqual((resp.data["situacao"], resp.data["planos"]), ("SEM_PLANO", []))
+        self.plano(intervalo_km=10000)
+        self.plano(intervalo_km=5000, tipo_veiculo="CARRO")  # outro tipo: não se aplica
+        self.plano(intervalo_km=5000, situacao="INATIVO")  # inativo: não se aplica
+        resp = self.client.get("/api/veiculos/ABC1D23/situacao")
+        self.assertEqual(resp.data["situacao"], "SEM_BASE")
+        self.assertEqual(len(resp.data["planos"]), 1)
+
+    def test_conclusao_recalcula_e_motorista_consulta(self):
+        """CA14: a ordem concluída passa a ser a base do cálculo; o motorista também vê (RF36)."""
+        plano = self.plano(intervalo_km=10000)
+        self.client.post("/api/ordens-servico", {"placa_veiculo": "ABC1D23", "id_plano": plano.pk,
+                         "descricao": "Óleo"}, format="json")
+        self.client.post("/api/ordens-servico/1/concluir", {"data_conclusao": str(timezone.localdate()),
+                         "quilometragem": 82000, "valor": "300.00"}, format="json")
+        self.ler(91200)
+        self.como_motorista()
+        resp = self.client.get("/api/veiculos/ABC1D23/situacao")
+        self.assertEqual(resp.status_code, 200)
+        item = resp.data["planos"][0]
+        self.assertEqual((item["situacao"], item["km_restante"], item["ultima_execucao"]["numero"]),
+                         ("PROXIMA", 800, 1))
+        Veiculo.objects.filter(pk="ABC1D23").update(situacao="INATIVO")
+        self.assertEqual(self.client.get("/api/veiculos/ABC1D23/situacao").status_code, 404)
+
+    def test_painel(self):
+        """CA21: o veículo conta uma vez, pela pior situação, e a lista mostra cada pendência."""
+        hoje = timezone.localdate()
+        oleo, filtro, freio = (self.plano(descricao=d, intervalo_km=10000) for d in ("Óleo", "Filtro", "Freio"))
+        self.executar(oleo, 80000, hoje, numero=1)    # vencida: faltam -3.000 km
+        self.executar(filtro, 81000, hoje, numero=2)  # vencida: faltam -2.000 km
+        self.executar(freio, 82500, hoje, numero=3)   # próxima: faltam 500 km
+        LeituraOdometro.objects.create(veiculo=self.veiculo, data_leitura=hoje, quilometragem=92000,
+                                       usuario=self.gestor)
+        Veiculo.objects.create(placa="INA0000", marca="VW", modelo="Gol", ano=2015, tipo="CAMINHAO",
+                               situacao="INATIVO", empresa=self.empresa)  # inativo não entra no painel
+        Veiculo.objects.create(placa="NOV0000", marca="VW", modelo="Gol", ano=2015, tipo="CARRO",
+                               empresa=self.empresa)
+
+        resp = self.client.get("/api/painel")
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual((resp.data["contagem"]["VENCIDA"], resp.data["contagem"]["SEM_PLANO"]), (1, 1))
+        self.assertEqual(sum(resp.data["contagem"].values()), 2)
+        self.assertEqual([(p["descricao"], p["situacao"]) for p in resp.data["pendencias"]],
+                         [("Óleo", "VENCIDA"), ("Filtro", "VENCIDA"), ("Freio", "PROXIMA")])
+        self.como_motorista()
+        self.assertEqual(self.client.get("/api/painel").status_code, 403)
+
+
+class VeiculoPrototipoTest(BaseTest):
+    """Campos do protótipo: apelido, observações e quilometragem informada no cadastro."""
+
+    def test_cadastro_com_apelido_e_km_inicial(self):
+        resp = self.client.post("/api/veiculos", {
+            "placa": "RBQ4B56", "identificacao": " Guincho 02 ", "marca": "Ford", "modelo": "Cargo 816",
+            "ano": 2019, "tipo": "GUINCHO", "observacoes": "Plataforma hidráulica", "quilometragem_inicial": 45200,
+        }, format="json")
+        self.assertEqual(resp.status_code, 201, resp.data)
+        self.assertEqual((resp.data["identificacao"], resp.data["km_atual"]), ("Guincho 02", 45200))
+        self.assertNotIn("quilometragem_inicial", resp.data)
+        leitura = LeituraOdometro.objects.get(veiculo_id="RBQ4B56")
+        self.assertEqual((leitura.origem, leitura.usuario), ("MANUAL", self.gestor))
+        # depois do cadastro, a km só muda por leitura
+        self.client.patch("/api/veiculos/RBQ4B56", {"quilometragem_inicial": 1, "identificacao": ""}, format="json")
+        self.assertEqual(LeituraOdometro.objects.filter(veiculo_id="RBQ4B56").count(), 1)
+        self.assertIsNone(Veiculo.objects.get(pk="RBQ4B56").identificacao)
+
+    def test_painel_traz_frota_e_realizadas_no_mes(self):
+        Veiculo.objects.filter(pk="ABC1D23").update(identificacao="Guincho 01")
+        plano = PlanoManutencao.objects.create(descricao="Óleo", tipo_veiculo="CAMINHAO", intervalo_km=10000,
+                                               empresa=self.empresa)
+        OrdemServico.objects.create(numero=1, descricao="Óleo", data_abertura=timezone.localdate(),
+                                    data_conclusao=timezone.localdate(), quilometragem=100, status="CONCLUIDA",
+                                    veiculo=self.veiculo, plano=plano, emitente=self.gestor)
+        LeituraOdometro.objects.create(veiculo=self.veiculo, data_leitura=timezone.localdate(), quilometragem=100,
+                                       origem="ORDEM_SERVICO", usuario=self.gestor)
+        resp = self.client.get("/api/painel")
+        self.assertEqual(resp.data["realizadas_no_mes"], 1)
+        veiculo = resp.data["veiculos"][0]
+        self.assertEqual((veiculo["identificacao"], veiculo["marca"], veiculo["situacao"]), ("Guincho 01", "VW", "EM_DIA"))
+
+
+class ServicoRealizadoTest(BaseTest):
+    """POST /ordens-servico/realizada: abre e conclui de uma vez, ou não grava nada."""
+
+    url = "/api/ordens-servico/realizada"
+
+    def test_registra_concluida_com_leitura(self):
+        self.ler(1000)
+        resp = self.client.post(self.url, {"placa_veiculo": "ABC1D23", "descricao": "Troca de óleo",
+                                "data_conclusao": "2026-10-10", "quilometragem": 1500, "valor": "300.00",
+                                "oficina": "Oficina do Zé"}, format="json")
+        self.assertEqual(resp.status_code, 201, resp.data)
+        self.assertEqual((resp.data["numero"], resp.data["status"], resp.data["data_abertura"]),
+                         (1, "CONCLUIDA", "2026-10-10"))
+        leitura = LeituraOdometro.objects.order_by("-codigo").first()
+        self.assertEqual((leitura.quilometragem, leitura.origem), (1500, "ORDEM_SERVICO"))
+
+    def test_recusa_nao_grava_nada(self):
+        self.ler(1000)
+        resp = self.client.post(self.url, {"placa_veiculo": "ABC1D23", "descricao": "Óleo",
+                                "data_conclusao": "2026-10-10", "quilometragem": 900, "valor": "1"}, format="json")
+        self.assertIn("quilometragem", resp.data)
+        resp = self.client.post(self.url, {"placa_veiculo": "ABC1D23"}, format="json")
+        self.assertEqual(set(resp.data), {"descricao", "data_conclusao", "quilometragem", "valor"})
+        self.assertFalse(OrdemServico.objects.exists())
+        self.como_motorista()
+        self.assertEqual(self.client.post(self.url, {}, format="json").status_code, 403)
