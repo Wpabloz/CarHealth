@@ -182,7 +182,7 @@ export const patch = (caminho, corpo) => api(caminho, { metodo: "PATCH", corpo }
 export const put = (caminho, corpo) => api(caminho, { metodo: "PUT", corpo });
 export const remover = (caminho) => api(caminho, { metodo: "DELETE" });
 
-// Monta ?a=1&b=2 ignorando valores vazios
+// ignora valores vazios
 export function query(parametros) {
   const busca = new URLSearchParams();
   for (const [chave, valor] of Object.entries(parametros)) {
