@@ -130,6 +130,11 @@ TOLERANCIA_DIAS = int(os.getenv("TOLERANCIA_DIAS", "30"))
 CORS_ALLOWED_ORIGINS = [
     o for o in os.getenv("CORS_ALLOWED_ORIGINS", "http://localhost:5173,http://localhost:3000").split(",") if o
 ]
+# Site publicado no Vercel (endereço principal e as prévias de cada deploy da equipe wpabloz)
+CORS_ALLOWED_ORIGIN_REGEXES = [
+    r"^https://car-health-iota\.vercel\.app$",
+    r"^https://car-health-[a-z0-9-]+-wpabloz\.vercel\.app$",
+]
 
 LANGUAGE_CODE = "pt-br"
 TIME_ZONE = "America/Sao_Paulo"
