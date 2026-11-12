@@ -1,11 +1,11 @@
-from datetime import date
+from datetime import date, timedelta
 
 from django.utils import timezone
 from rest_framework.test import APITestCase
 
 from contas.models import Empresa, Usuario
 
-from .models import LeituraOdometro, Motorista, OrdemServico, PlanoManutencao, Veiculo
+from .models import Checkin, LeituraOdometro, Motorista, OrdemServico, PlanoManutencao, Problema, Veiculo
 
 SENHA = "SenhaForte#2026"
 
@@ -32,6 +32,11 @@ class BaseTest(APITestCase):
     def ler(self, km, **extra):
         return self.client.post("/api/leituras-odometro",
                                 {"placa_veiculo": "ABC1D23", "quilometragem": km, **extra}, format="json")
+
+    def checkin(self, placa="ABC1D23", km=0, estado="BOM", **extra):
+        """Check-in do motorista logado (Sprint 5): abre o gate das demais ações do dia."""
+        return self.client.post("/api/checkins", {"placa_veiculo": placa, "quilometragem": km,
+                                "estado_geral": estado, **extra}, format="json")
 
 
 class MotoristaTest(BaseTest):
@@ -91,6 +96,29 @@ class MotoristaTest(BaseTest):
         self.como_motorista()
         self.assertEqual(self.client.get("/api/motoristas").status_code, 403)
 
+    def test_isolamento_entre_empresas(self):
+        """RNF08: motorista de outra empresa não aparece nem é acessível por identificador direto."""
+        alheio = Motorista.objects.create(cpf="11144477735", nome="Z", telefone="1", num_cnh="2",
+                                          validade_cnh="2030-01-01", empresa=self.outra)
+        self.assertEqual([m["cpf"] for m in self.client.get("/api/motoristas").data], ["52998224725"])
+        self.assertEqual(self.client.get(f"/api/motoristas/{alheio.cpf}").status_code, 404)
+        self.assertEqual(self.client.patch(f"/api/motoristas/{alheio.cpf}", {"nome": "X"},
+                                           format="json").status_code, 404)
+        self.assertEqual(self.client.delete(f"/api/motoristas/{alheio.cpf}").status_code, 404)
+
+    def test_conta_inativada_mantem_historico(self):
+        """CA28, segunda parte: as leituras lançadas pelo motorista continuam no histórico do veículo."""
+        self.como_motorista()
+        self.checkin(km=500)
+        self.ler(1000)
+        self.client.force_authenticate(self.gestor)
+        Motorista.objects.filter(pk="52998224725").update(situacao="INATIVO")
+        Usuario.objects.filter(pk=self.conta_joao.pk).update(situacao="INATIVO")
+        resp = self.client.get("/api/leituras-odometro?veiculo=ABC1D23")
+        self.assertEqual(len(resp.data), 2)  # a do check-in e a leitura manual, ambas de joão
+        self.assertEqual({r["email_usuario"] for r in resp.data}, {"joao@a.com"})
+        self.assertEqual(self.client.get("/api/veiculos/ABC1D23").data["km_atual"], 1000)
+
 
 class VeiculoTest(BaseTest):
     def test_cadastrar_listar_filtrar(self):
@@ -128,6 +156,7 @@ class VeiculoTest(BaseTest):
         Veiculo.objects.create(placa="INA0000", marca="VW", modelo="Gol", ano=2015, tipo="CARRO",
                                situacao="INATIVO", empresa=self.empresa)
         self.como_motorista()
+        self.checkin()
         self.assertEqual([v["placa"] for v in self.client.get("/api/veiculos").data], ["ABC1D23"])
         self.assertEqual(self.client.get("/api/veiculos/INA0000").status_code, 404)
         resp = self.client.post("/api/veiculos", {"placa": "AAA1111", "marca": "X", "modelo": "Y",
@@ -150,11 +179,21 @@ class PlanoTest(BaseTest):
         self.como_motorista()
         self.assertEqual(self.client.get("/api/planos-manutencao").status_code, 403)
 
+    def test_isolamento_entre_empresas(self):
+        """RNF08: plano de outra empresa não aparece nem é acessível por identificador direto."""
+        alheio = PlanoManutencao.objects.create(descricao="Óleo", tipo_veiculo="CARRO", intervalo_km=10000,
+                                                empresa=self.outra)
+        self.assertEqual(len(self.client.get("/api/planos-manutencao").data), 0)
+        self.assertEqual(self.client.get(f"/api/planos-manutencao/{alheio.pk}").status_code, 404)
+        self.assertEqual(self.client.patch(f"/api/planos-manutencao/{alheio.pk}", {"descricao": "X"},
+                                           format="json").status_code, 404)
+
 
 class LeituraTest(BaseTest):
     def test_registro_manual(self):
         """CA01: data de hoje, origem manual e o usuário logado como responsável."""
         self.como_motorista()
+        self.checkin(km=1000)
         resp = self.ler(5000)
         self.assertEqual(resp.status_code, 201, resp.data)
         leitura = LeituraOdometro.objects.get(pk=resp.data["codigo"])
@@ -181,6 +220,7 @@ class LeituraTest(BaseTest):
         """CA18: a recusa orienta a avisar o gestor."""
         self.ler(91200)
         self.como_motorista()
+        self.checkin(km=91200)
         self.assertIn("avise o gestor", self.ler(90000).data["quilometragem"][0])
         self.assertIn("origem", self.ler(400, origem="AJUSTE_ODOMETRO").data)
 
@@ -188,9 +228,25 @@ class LeituraTest(BaseTest):
         self.assertIn("origem", self.ler(100, origem="ORDEM_SERVICO").data)
 
     def test_motorista_e_veiculo_inativo(self):
+        Veiculo.objects.create(placa="NOV0000", marca="VW", modelo="Gol", ano=2015, tipo="CARRO",
+                               empresa=self.empresa)  # veículo ativo para o motorista conseguir o check-in
         Veiculo.objects.filter(pk="ABC1D23").update(situacao="INATIVO")
         self.como_motorista()
+        self.checkin(placa="NOV0000")
         self.assertIn("placa_veiculo", self.ler(100).data)
+
+    def test_isolamento_entre_empresas(self):
+        """RNF08: leitura de veículo de outra empresa não aparece nem é acessível por identificador direto."""
+        self.ler(1000)
+        veiculo_b = Veiculo.objects.create(placa="XYZ9876", marca="VW", modelo="Gol", ano=2015,
+                                           tipo="CARRO", empresa=self.outra)
+        alheia = LeituraOdometro.objects.create(veiculo=veiculo_b, data_leitura=timezone.localdate(),
+                                                quilometragem=500, origem="MANUAL",
+                                                usuario=Usuario.objects.create_user(
+                                                    "g@b.com", SENHA, nome="B", empresa=self.outra,
+                                                    perfil="GESTOR"))
+        self.assertEqual(len(self.client.get("/api/leituras-odometro").data), 1)
+        self.assertEqual(self.client.get(f"/api/leituras-odometro/{alheia.pk}").status_code, 404)
 
 
 class OrdemServicoTest(BaseTest):
@@ -265,6 +321,7 @@ class OrdemServicoTest(BaseTest):
         self.abrir()
         self.concluir(1, data_conclusao="2026-09-03", quilometragem=100, valor="350.00")
         self.como_motorista()
+        self.checkin(km=100)
         resp = self.client.get(self.url)
         self.assertEqual([o["numero"] for o in resp.data], [1])
         self.assertNotIn("valor", resp.data[0])
@@ -331,6 +388,7 @@ class SituacaoManutencaoTest(BaseTest):
                          "quilometragem": 82000, "valor": "300.00"}, format="json")
         self.ler(91200)
         self.como_motorista()
+        self.checkin(km=91200)
         resp = self.client.get("/api/veiculos/ABC1D23/situacao")
         self.assertEqual(resp.status_code, 200)
         item = resp.data["planos"][0]
@@ -422,3 +480,220 @@ class ServicoRealizadoTest(BaseTest):
         self.assertFalse(OrdemServico.objects.exists())
         self.como_motorista()
         self.assertEqual(self.client.post(self.url, {}, format="json").status_code, 403)
+
+
+class CheckinTest(BaseTest):
+    """Sprint 5 (Cap. 5): check-in por QR code, obrigatório antes das demais ações do motorista."""
+
+    def test_libera_as_demais_acoes_do_dia(self):
+        self.como_motorista()
+        self.assertEqual(self.client.get("/api/veiculos").status_code, 403)  # ainda sem check-in
+        resp = self.checkin(km=1000, estado="BOM")
+        self.assertEqual(resp.status_code, 201, resp.data)
+        self.assertEqual((resp.data["estado_geral"], resp.data["email_usuario"]), ("BOM", "joao@a.com"))
+        leitura = LeituraOdometro.objects.get(pk=resp.data["codigo_leitura"])
+        self.assertEqual((leitura.quilometragem, leitura.origem, leitura.usuario), (1000, "CHECKIN", self.conta_joao))
+        # agora as demais ações do dia estão liberadas
+        self.assertEqual(self.client.get("/api/veiculos").status_code, 200)
+        self.assertEqual(self.client.get("/api/veiculos/ABC1D23/situacao").status_code, 200)
+        self.assertEqual(self.client.get("/api/ordens-servico").status_code, 200)
+        self.assertEqual(self.ler(1200).status_code, 201)
+
+    def test_gestor_nao_precisa_de_checkin(self):
+        self.assertEqual(self.client.get("/api/veiculos").status_code, 200)
+
+    def test_nao_repete_checkin_do_mesmo_veiculo_no_dia(self):
+        self.como_motorista()
+        self.assertEqual(self.checkin(km=1000).status_code, 201)
+        resp = self.checkin(km=1200)
+        self.assertIn("já fez o check-in", resp.data["non_field_errors"][0])
+
+    def test_observacao_obrigatoria_quando_nao_e_bom(self):
+        self.como_motorista()
+        resp = self.checkin(km=1000, estado="RUIM")
+        self.assertIn("observacao", resp.data)
+        resp = self.checkin(km=1000, estado="RUIM", observacao="Barulho no freio")
+        self.assertEqual(resp.status_code, 201, resp.data)
+
+    def test_km_do_checkin_nao_retrocede(self):
+        self.ler(5000)
+        self.como_motorista()
+        resp = self.checkin(km=4000)
+        self.assertIn("5.000 km", resp.data["quilometragem"][0])
+
+    def test_nao_faz_checkin_em_veiculo_inativo(self):
+        Veiculo.objects.filter(pk="ABC1D23").update(situacao="INATIVO")
+        self.como_motorista()
+        self.assertIn("placa_veiculo", self.checkin().data)
+
+    def test_hoje(self):
+        self.como_motorista()
+        self.assertEqual(self.client.get("/api/checkins/hoje").status_code, 404)
+        self.checkin(km=1000)
+        resp = self.client.get("/api/checkins/hoje")
+        self.assertEqual((resp.status_code, resp.data["placa_veiculo"]), (200, "ABC1D23"))
+
+    def test_motorista_so_ve_os_proprios_e_gestor_ve_todos(self):
+        Motorista.objects.create(cpf="11144477735", nome="Maria", telefone="1", num_cnh="2",
+                                 validade_cnh="2030-01-01", empresa=self.empresa)
+        maria = Usuario.objects.create_user("maria@a.com", SENHA, perfil="MOTORISTA", empresa=self.empresa,
+                                            motorista=Motorista.objects.get(pk="11144477735"))
+        self.client.force_authenticate(self.conta_joao)
+        self.checkin(km=1000)
+        self.client.force_authenticate(maria)
+        self.checkin(km=2000)
+        self.assertEqual(len(self.client.get("/api/checkins").data), 1)
+        self.client.force_authenticate(self.gestor)
+        self.assertEqual(len(self.client.get("/api/checkins").data), 2)
+
+    def test_isolamento_entre_empresas(self):
+        self.como_motorista()
+        self.checkin(km=1000)
+        self.client.force_authenticate(Usuario.objects.create_user(
+            "g@b.com", SENHA, nome="B", empresa=self.outra, perfil="GESTOR"))
+        self.assertEqual(len(self.client.get("/api/checkins").data), 0)
+
+
+class ProblemaTest(BaseTest):
+    """Sprint 5, tela "Avisar problema": o motorista avisa (exige check-in do dia); só o gestor muda a situação."""
+
+    def relatar(self, **extra):
+        return self.client.post("/api/problemas", {"placa_veiculo": "ABC1D23", "componente": "FREIO",
+                                "pode_rodar": True, "descricao": "Barulho ao frear", **extra}, format="json")
+
+    def test_exige_checkin_do_dia(self):
+        self.como_motorista()
+        self.assertEqual(self.relatar().status_code, 403)
+        self.checkin(km=1000)
+        resp = self.relatar()
+        self.assertEqual(resp.status_code, 201, resp.data)
+        self.assertEqual((resp.data["situacao"], resp.data["email_usuario"], resp.data["componente_nome"]),
+                         ("ABERTO", "joao@a.com", "Freio"))
+
+    def test_campos_da_tela(self):
+        """Onde está o problema e se pode rodar são obrigatórios; a explicação é opcional."""
+        resp = self.client.post("/api/problemas", {"placa_veiculo": "ABC1D23"}, format="json")
+        self.assertEqual(set(resp.data), {"componente", "pode_rodar"})
+        self.assertIn("componente", self.relatar(componente="RODA").data)
+        resp = self.relatar(componente="LUZES", pode_rodar=False, descricao="")
+        self.assertEqual(resp.status_code, 201, resp.data)
+        self.assertEqual((resp.data["pode_rodar"], resp.data["descricao"]), (False, ""))
+
+    def test_motorista_acompanha_so_os_proprios(self):
+        self.relatar(descricao="Aviso do gestor")
+        self.como_motorista()
+        self.checkin(km=1000)
+        self.relatar(descricao="Aviso do João")
+        lista = self.client.get("/api/problemas").data
+        self.assertEqual([p["descricao"] for p in lista], ["Aviso do João"])
+
+    def test_so_gestor_muda_a_situacao(self):
+        numero = self.relatar().data["id_problema"]
+        self.como_motorista()
+        self.checkin(km=1000)
+        self.assertEqual(self.client.patch(f"/api/problemas/{numero}", {"situacao": "RESOLVIDO"},
+                                           format="json").status_code, 403)
+        self.client.force_authenticate(self.gestor)
+        resp = self.client.patch(f"/api/problemas/{numero}", {"situacao": "EM_ANALISE"}, format="json")
+        self.assertEqual(resp.data["situacao"], "EM_ANALISE")
+
+    def test_nao_altera_o_aviso_depois_de_enviado(self):
+        numero = self.relatar().data["id_problema"]
+        resp = self.client.patch(f"/api/problemas/{numero}", {"componente": "MOTOR"}, format="json")
+        self.assertIn("componente", resp.data)
+
+    def test_gestor_filtra_por_veiculo_e_situacao(self):
+        self.relatar()
+        Veiculo.objects.create(placa="NOV0000", marca="VW", modelo="Gol", ano=2015, tipo="CARRO",
+                               empresa=self.empresa)
+        self.relatar(placa_veiculo="NOV0000")
+        self.assertEqual(len(self.client.get("/api/problemas?veiculo=ABC1D23").data), 1)
+        self.assertEqual(len(self.client.get("/api/problemas?situacao=ABERTO").data), 2)
+
+
+class AvisoTest(BaseTest):
+    """Sprint 5, tela "Avisos": manutenções pendentes do veículo e o "Entendi" do motorista."""
+
+    def setUp(self):
+        super().setUp()
+        hoje = timezone.localdate()
+        self.oleo = PlanoManutencao.objects.create(descricao="Troca de óleo", tipo_veiculo="CAMINHAO",
+                                                   intervalo_km=10000, empresa=self.empresa)
+        self.pneus = PlanoManutencao.objects.create(descricao="Rodízio dos pneus", tipo_veiculo="CAMINHAO",
+                                                    intervalo_meses=6, empresa=self.empresa)
+        PlanoManutencao.objects.create(descricao="Freios", tipo_veiculo="CAMINHAO", intervalo_km=50000,
+                                       empresa=self.empresa)
+        for numero, plano in enumerate([self.oleo, self.pneus], start=1):
+            OrdemServico.objects.create(numero=numero, descricao=plano.descricao, data_abertura=hoje,
+                                        data_conclusao=hoje if plano is self.oleo else hoje - timedelta(days=170),
+                                        quilometragem=80000, status="CONCLUIDA", veiculo=self.veiculo,
+                                        plano=plano, emitente=self.gestor)
+        self.ler(91000)  # óleo: passou 1.000 km; pneus: vencem em ~10 dias
+
+    def test_lista_so_os_pendentes_do_mais_urgente(self):
+        self.como_motorista()
+        self.checkin(km=91000)
+        avisos = self.client.get("/api/veiculos/ABC1D23/avisos").data
+        self.assertEqual([(a["descricao"], a["situacao"], a["visto"]) for a in avisos],
+                         [("Troca de óleo", "VENCIDA", False), ("Rodízio dos pneus", "PROXIMA", False)])
+
+    def test_entendi_vale_para_quem_tocou_e_aparece_no_painel(self):
+        self.como_motorista()
+        self.checkin(km=91000)
+        resp = self.client.post(f"/api/veiculos/ABC1D23/avisos/{self.oleo.pk}/entendi")
+        self.assertEqual((resp.status_code, resp.data["visto"]), (200, True))
+        self.client.post(f"/api/veiculos/ABC1D23/avisos/{self.oleo.pk}/entendi")  # repetir não duplica
+        avisos = self.client.get("/api/veiculos/ABC1D23/avisos").data
+        self.assertEqual([a["visto"] for a in avisos], [True, False])
+        self.client.force_authenticate(self.gestor)
+        self.assertEqual(self.client.get("/api/veiculos/ABC1D23/avisos").data[0]["visto"], False)
+        pendencias = self.client.get("/api/painel").data["pendencias"]
+        self.assertEqual([(p["descricao"], p["visto_por"]) for p in pendencias],
+                         [("Troca de óleo", ["João"]), ("Rodízio dos pneus", [])])
+
+    def test_nova_previsao_e_um_aviso_novo(self):
+        self.como_motorista()
+        self.checkin(km=91000)
+        self.client.post(f"/api/veiculos/ABC1D23/avisos/{self.oleo.pk}/entendi")
+        self.client.force_authenticate(self.gestor)
+        self.ler(102000)  # passou mais: a previsão é a mesma, continua visto
+        self.client.force_authenticate(self.conta_joao)
+        self.assertTrue(self.client.get("/api/veiculos/ABC1D23/avisos").data[0]["visto"])
+        hoje = timezone.localdate()
+        OrdemServico.objects.create(numero=3, descricao="Troca de óleo", data_abertura=hoje, data_conclusao=hoje,
+                                    quilometragem=92500, status="CONCLUIDA", veiculo=self.veiculo,
+                                    plano=self.oleo, emitente=self.gestor)
+        oleo = next(a for a in self.client.get("/api/veiculos/ABC1D23/avisos").data if a["id_plano"] == self.oleo.pk)
+        self.assertEqual((oleo["km_previsto"], oleo["visto"]), (102500, False))  # nova previsão: aviso novo
+
+    def test_aviso_que_nao_esta_pendente_e_veiculo_de_outra_empresa(self):
+        freios = PlanoManutencao.objects.get(descricao="Freios")
+        self.assertEqual(self.client.post(f"/api/veiculos/ABC1D23/avisos/{freios.pk}/entendi").status_code, 404)
+        Veiculo.objects.create(placa="OUT1A11", marca="VW", modelo="X", ano=2020, tipo="CAMINHAO", empresa=self.outra)
+        self.assertEqual(self.client.get("/api/veiculos/OUT1A11/avisos").status_code, 404)
+
+    def test_motorista_precisa_do_checkin(self):
+        self.como_motorista()
+        self.assertEqual(self.client.get("/api/veiculos/ABC1D23/avisos").status_code, 403)
+
+
+class PopularDemoTest(APITestCase):
+    """O comando popular_demo cria a demonstração com a mistura de situações esperada."""
+
+    def test_cria_demonstracao(self):
+        from django.core.management import call_command
+        from io import StringIO
+
+        call_command("popular_demo", stdout=StringIO())
+        call_command("popular_demo", "--manter", stdout=StringIO())  # não duplica nem dá erro
+        gestor = Usuario.objects.get(email="silvana@reboquessilva.com.br")
+        self.client.force_authenticate(gestor)
+        painel = self.client.get("/api/painel").data
+        self.assertEqual({k: v for k, v in painel["contagem"].items() if v},
+                         {"VENCIDA": 1, "PROXIMA": 1, "EM_DIA": 1})
+        numeros = sorted(OrdemServico.objects.values_list("numero", flat=True))
+        self.assertEqual(numeros, list(range(1, len(numeros) + 1)))
+        aviso = Problema.objects.get()
+        self.assertEqual((aviso.veiculo_id, aviso.descricao, aviso.situacao), ("RSV2B47", "Barulho ao frear", "EM_ANALISE"))
+        call_command("popular_demo", "--recriar", stdout=StringIO())
+        self.assertEqual((Veiculo.objects.count(), Problema.objects.count()), (4, 1))

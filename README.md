@@ -211,6 +211,11 @@ Cada recurso tem as 5 rotas padrão:
 | `/ordens-servico/{numero}/concluir` 👑 | — | — | POST: conclui e gera a leitura de odômetro automaticamente. |
 | `/ordens-servico/{numero}/cancelar` 👑 | — | — | POST: cancela uma ordem ainda não concluída. |
 | `/ordens-servico/realizada` 👑 | — | — | POST: registra um serviço **já feito**: abre e conclui a ordem de uma vez, com a leitura. Se algo for recusado, nada é gravado. |
+| `/checkins` 🔒 | id_checkin | `?veiculo=` `?data_checkin=` | **Sprint 5.** POST (motorista): `placa_veiculo`, `quilometragem`, `estado_geral` (`BOM`, `REGULAR`, `RUIM`) e `observacao` (obrigatória se não for BOM). Gera a leitura de odômetro (origem `CHECKIN`). Sem edição nem DELETE. |
+| `/checkins/hoje` 🔒 | — | — | GET: o check-in de hoje de quem está logado (404 se ainda não fez). |
+| `/problemas` 🔒 | id_problema | `?veiculo=` `?situacao=` | **Sprint 5.** POST: `placa_veiculo`, `componente` (`FREIO`, `MOTOR`, `PNEU`, `LUZES`, `GUINCHO`, `OUTRO`), `pode_rodar` e `descricao` (opcional). Motorista vê só os próprios. PATCH 👑: só a `situacao` (`ABERTO`, `EM_ANALISE`, `RESOLVIDO`). Sem DELETE. |
+| `/veiculos/{placa}/avisos` 🔒 | — | — | **Sprint 5.** GET: manutenções atrasadas ou próximas do veículo, com `visto` = quem está logado já tocou em "Entendi". |
+| `/veiculos/{placa}/avisos/{id_plano}/entendi` 🔒 | — | — | **Sprint 5.** POST: o motorista confirma que viu o aviso; o gestor vê em `/painel` (`pendencias[].visto_por`). |
 
 **Por que a empresa não tem POST/DELETE próprios?** No modelo de dados, todo `usuario` pertence a uma `empresa` (`usuario.cnpj_empresa NOT NULL`). Por isso a empresa nasce junto com o primeiro usuário em `/auth/registrar`.
 
@@ -219,6 +224,8 @@ Cada recurso tem as 5 rotas padrão:
 - **Número da OS (RF23):** sequencial dentro de cada empresa, começando em 1 e gerado na abertura. O `id_ordem` é interno e não aparece na API.
 - **Plano da OS (RN10):** `id_plano` é opcional (ordem corretiva não tem plano). Quando informado, o plano precisa estar ATIVO e ser do mesmo tipo do veículo.
 - **Inativar em vez de excluir (RN15):** veículo, motorista, plano ou usuário com histórico não é excluído (409); use `"situacao": "INATIVO"`.
+- **Check-in obrigatório (Sprint 5):** enquanto o motorista não fizer o check-in do dia, a API recusa as outras ações dele (403, permissão `ExigeCheckinDoDia`). Antes do check-in ficam liberados só `/veiculos/{placa}` e `/veiculos/{placa}/situacao` (a tela "Este é o seu caminhão?") e as rotas de `/checkins`.
+- **QR code da etiqueta:** guarda o endereço `<site>/m/checkin/<PLACA>`; o app lê a placa dele. O gestor imprime a etiqueta na lista de veículos (ícone de QR).
 
 ### Fluxo da ordem de serviço (MVP)
 ```
@@ -306,7 +313,7 @@ Para testar à mão, sem a coleção: faça o login, copie o `access` da respost
 ```powershell
 python manage.py test
 ```
-Roda 55 testes: login, token, bcrypt, conta inativa, isolamento entre empresas, permissões de cada perfil, CRUDs e as regras de negócio (odômetro, numeração e conclusão da OS, serviço já realizado, situação de manutenção). Rode antes de cada `git push`.
+Roda 80 testes: login, token, bcrypt, conta inativa, isolamento entre empresas, permissões de cada perfil, CRUDs e as regras de negócio (odômetro, numeração e conclusão da OS, serviço já realizado, situação de manutenção), o check-in do dia, o aviso de problema, o "Entendi" dos avisos e os dados de demonstração. Rode antes de cada `git push`.
 
 ## 8. Frontend (pasta `frontend/`)
 
@@ -323,7 +330,7 @@ Para quem for fazer outro frontend ou integrar:
 
 - O frontend chama `http://127.0.0.1:8000/api/...` enviando e recebendo JSON.
 - Depois do login, guarde o `access` e envie em toda chamada: `Authorization: Bearer <token>`.
-- Use o `perfil` de `GET /api/auth/me` para levar o gestor ao painel e o motorista à lista de veículos (RF04). As restrições valem no servidor de qualquer jeito.
+- Use o `perfil` de `GET /api/auth/me` para levar o gestor ao painel e o motorista ao check-in do dia (RF04). As restrições valem no servidor de qualquer jeito.
 - Os endereços do frontend que podem chamar a API ficam em `CORS_ALLOWED_ORIGINS` no `.env`. Já estão liberados `http://localhost:5173` (Vite) e `http://localhost:3000`.
 - O contrato completo da API (para gerar tipos ou clientes) fica em `http://127.0.0.1:8000/api/schema`.
 

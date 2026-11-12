@@ -15,7 +15,7 @@ from contas.models import Situacao, Usuario
 from contas.serializers import DaEmpresaField, chave_nao_muda
 
 from .manutencao import SituacaoManutencao
-from .models import LeituraOdometro, Motorista, OrdemServico, PlanoManutencao, Veiculo
+from .models import Checkin, LeituraOdometro, Motorista, OrdemServico, PlanoManutencao, Problema, Veiculo
 
 
 def formatar_km(valor):
@@ -257,6 +257,91 @@ class ConclusaoSerializer(serializers.Serializer):
         return dados
 
 
+class CheckinSerializer(serializers.ModelSerializer):
+    """
+    POST /checkins (só MOTORISTA): placa_veiculo, quilometragem, estado_geral e,
+    se o estado não for BOM, observacao. Grava o check-in e a leitura de odômetro
+    na mesma transação (Sprint 5, Cap. 5, item 5.8).
+    """
+
+    EstadoGeral = Checkin.EstadoGeral
+
+    placa_veiculo = DaEmpresaField(source="veiculo", queryset=Veiculo.objects.all())
+    quilometragem = serializers.IntegerField(write_only=True, min_value=0)
+    email_usuario = serializers.CharField(source="usuario_id", read_only=True)
+    codigo_leitura = serializers.IntegerField(source="leitura_id", read_only=True)
+
+    class Meta:
+        model = Checkin
+        fields = ["id_checkin", "placa_veiculo", "data_checkin", "estado_geral", "observacao",
+                  "quilometragem", "email_usuario", "codigo_leitura"]
+        read_only_fields = ["data_checkin"]
+
+    def validate(self, dados):
+        veiculo = dados["veiculo"]
+        if veiculo.situacao != Situacao.ATIVO:
+            raise serializers.ValidationError({"placa_veiculo": "Este veículo está inativo."})
+        if dados["estado_geral"] != self.EstadoGeral.BOM and not (dados.get("observacao") or "").strip():
+            raise serializers.ValidationError(
+                {"observacao": "Obrigatória quando o estado geral não é BOM."})
+
+        usuario = self.context["request"].user
+        hoje = timezone.localdate()
+        if Checkin.objects.filter(usuario=usuario, veiculo=veiculo, data_checkin=hoje).exists():
+            raise serializers.ValidationError(
+                "Você já fez o check-in deste veículo hoje.")
+
+        anterior = veiculo.ultima_leitura
+        if anterior and dados["quilometragem"] < anterior.quilometragem:
+            raise serializers.ValidationError({"quilometragem":
+                f"Menor que a última leitura registrada ({formatar_km(anterior.quilometragem)})."})
+        return dados
+
+    def create(self, dados):
+        km = dados.pop("quilometragem")
+        usuario = self.context["request"].user
+        leitura = LeituraOdometro.objects.create(
+            veiculo=dados["veiculo"], quilometragem=km, data_leitura=timezone.localdate(),
+            origem=LeituraOdometro.Origem.CHECKIN, usuario=usuario,
+        )
+        return Checkin.objects.create(usuario=usuario, data_checkin=timezone.localdate(),
+                                      leitura=leitura, **dados)
+
+
+class ProblemaSerializer(serializers.ModelSerializer):
+    """
+    POST /problemas (exige check-in do dia): placa_veiculo, componente (FREIO, MOTOR, PNEU,
+    LUZES, GUINCHO ou OUTRO), pode_rodar (true/false) e descricao opcional — os campos da
+    tela "Avisar problema". PATCH (só GESTOR): só a situação muda.
+    """
+
+    placa_veiculo = DaEmpresaField(source="veiculo", queryset=Veiculo.objects.all())
+    email_usuario = serializers.CharField(source="usuario_id", read_only=True)
+    nome_usuario = serializers.CharField(source="usuario.nome_exibicao", read_only=True)
+    componente_nome = serializers.CharField(source="get_componente_display", read_only=True)
+    descricao = serializers.CharField(max_length=500, required=False, allow_blank=True)
+
+    class Meta:
+        model = Problema
+        fields = ["id_problema", "placa_veiculo", "data_hora", "componente", "componente_nome", "pode_rodar",
+                  "descricao", "situacao", "email_usuario", "nome_usuario"]
+        read_only_fields = ["data_hora"]
+
+    def validate_descricao(self, valor):
+        return (valor or "").strip()
+
+    def validate(self, dados):
+        # Na edição (só o GESTOR, conferido na view), apenas a situação pode mudar.
+        if self.instance is not None:
+            for campo in ("veiculo", "componente", "pode_rodar", "descricao"):
+                if campo in dados and dados[campo] != getattr(self.instance, campo):
+                    raise serializers.ValidationError(
+                        {campo: "Este campo não pode ser alterado depois do aviso."})
+        elif dados["veiculo"].situacao != Situacao.ATIVO:
+            raise serializers.ValidationError({"placa_veiculo": "Este veículo está inativo."})
+        return dados
+
+
 class RealizadaSerializer(serializers.Serializer):
     """Corpo de POST /ordens-servico/realizada (documentação): dados da ordem e da conclusão juntos."""
 
@@ -304,7 +389,15 @@ class SituacaoVeiculoSerializer(serializers.Serializer):
     planos = SituacaoPlanoSerializer(many=True)
 
 
+class AvisoSerializer(SituacaoPlanoSerializer):
+    """Um aviso da tela "Avisos" do motorista: manutenção atrasada ou próxima, e se ele já tocou em "Entendi"."""
+    referencia = serializers.CharField(help_text="Previsão do aviso (data|km); muda depois que a manutenção é feita.")
+    visto = serializers.BooleanField(help_text='O usuário logado já tocou em "Entendi".')
+
+
 class PendenciaSerializer(SituacaoPlanoSerializer):
+    visto_por = serializers.ListField(child=serializers.CharField(),
+                                      help_text='Quem já tocou em "Entendi" neste aviso (tela Avisos do motorista).')
     placa = serializers.CharField()
     identificacao = serializers.CharField(allow_null=True)
     marca = serializers.CharField()

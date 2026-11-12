@@ -140,9 +140,9 @@ export function useAuth() {
   return useContext(AuthContext);
 }
 
-/** Página inicial de cada perfil (RF04): gestor no Painel, motorista na lista de veículos. */
+/** Página inicial de cada perfil (RF04): gestor no Painel, motorista no Início (que pede o check-in do dia). */
 export function inicioDoPerfil(usuario) {
-  return usuario?.perfil === "MOTORISTA" ? "/m/veiculos" : "/painel";
+  return usuario?.perfil === "MOTORISTA" ? "/m" : "/painel";
 }
 
 /** Só deixa entrar quem está logado com o perfil certo; os outros vão para a própria área. */

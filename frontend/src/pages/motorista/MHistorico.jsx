@@ -1,36 +1,48 @@
-import { useParams } from "react-router-dom";
+import { History } from "lucide-react";
 
 import { get, query } from "../../api/client";
-import { Cabecalho, Conteudo, Vazio } from "../../components/ui";
-import { data, km } from "../../lib/formato";
+import { iconeDoServico } from "../../components/motorista/Icones";
+import { CarregandoMo, Conteudo, IconeBloco, MenuInferior, TopoTitulo } from "../../components/motorista/ui";
+import { useMotorista } from "../../layouts/motoristaContexto";
+import { data, nomeVeiculo } from "../../lib/formato";
 import { useCarregar } from "../../lib/useCarregar";
 
-/** O que já foi feito no veículo, sem os valores pagos (RF36, CA25). */
+/** 03 — Histórico: serviços já feitos no caminhão do dia, do mais recente (sem valores, RF36). */
 export default function MHistorico() {
-  const { placa } = useParams();
-  const ordens = useCarregar(() => get(`/ordens-servico${query({ veiculo: placa })}`), [placa]);
-  const lista = [...(ordens.dados || [])].sort((a, b) => b.data_conclusao.localeCompare(a.data_conclusao));
+  const { veiculo } = useMotorista();
+  const placa = veiculo?.placa;
+  const ordens = useCarregar(() => (placa ? get(`/ordens-servico${query({ veiculo: placa })}`) : Promise.resolve([])), [placa]);
+  const lista = [...(ordens.dados || [])].sort((a, b) => b.data_conclusao.localeCompare(a.data_conclusao) || b.numero - a.numero);
+  const nome = veiculo ? nomeVeiculo(veiculo) : "caminhão";
 
   return (
     <>
-      <Cabecalho voltar={`/m/veiculos/${placa}`} titulo="Histórico do veículo" subtitulo={placa} />
-      <Conteudo carregando={ordens.carregando} erro={ordens.erro} tentar={ordens.recarregar}>
-        {lista.length === 0 ? (
-          <Vazio titulo="Nenhuma manutenção registrada neste veículo." />
+      <TopoTitulo>Histórico</TopoTitulo>
+      <Conteudo gap={20}>
+        <p className="mo-texto">Serviços já feitos no {nome}.</p>
+        {ordens.carregando && !ordens.dados ? <CarregandoMo /> : ordens.erro ? (
+          <p className="mo-erro" role="alert">{ordens.erro.message}</p>
+        ) : lista.length === 0 ? (
+          <div className="mo-vazio">
+            <IconeBloco icone={History} tamanho={52} raio={14} iconeTamanho={28} />
+            <strong>Nenhum serviço registrado</strong>
+            <span>Quando o {nome} passar por manutenção, ela aparece aqui.</span>
+          </div>
         ) : (
-          <ul className="linha-do-tempo">
+          <ul className="mo-lista" aria-label="Serviços feitos">
             {lista.map((o) => (
-              <li key={o.numero} className="linha-do-tempo__item">
-                <span className="linha-do-tempo__data">{data(o.data_conclusao)}</span>
-                <span className="linha-do-tempo__servico">{o.descricao}</span>
-                <span className="linha-do-tempo__detalhe">
-                  {km(o.quilometragem)}{o.oficina && ` · ${o.oficina}`}
+              <li key={o.numero} className="mo-lista__item">
+                <IconeBloco icone={iconeDoServico(o.descricao)} tamanho={44} raio={12} iconeTamanho={24} />
+                <span className="mo-lista__textos">
+                  <span className="mo-lista__titulo">{o.descricao}</span>
+                  <span className="mo-lista__data">{data(o.data_conclusao)}</span>
                 </span>
               </li>
             ))}
           </ul>
         )}
       </Conteudo>
+      <MenuInferior />
     </>
   );
 }

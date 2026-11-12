@@ -21,7 +21,7 @@ from django.utils import timezone
 
 from contas.models import Situacao
 
-from .models import ORDEM_DOS_VEICULOS, LeituraOdometro, OrdemServico, PlanoManutencao, Veiculo
+from .models import ORDEM_DOS_VEICULOS, CienciaAviso, LeituraOdometro, OrdemServico, PlanoManutencao, Veiculo
 
 
 class SituacaoManutencao(models.TextChoices):
@@ -82,6 +82,23 @@ def calcular_plano(plano, execucao, km_atual, hoje):
     return item
 
 
+def referencia(item):
+    """Identifica um aviso pela previsão (data|km): feita a manutenção, a nova previsão é outro aviso."""
+    data = item["data_prevista"].isoformat() if item["data_prevista"] else ""
+    return f"{data}|{item['km_previsto'] if item['km_previsto'] is not None else ''}"
+
+
+def pendente(item):
+    return item["situacao"] in (SituacaoManutencao.VENCIDA, SituacaoManutencao.PROXIMA)
+
+
+def ordem_de_urgencia(item):
+    infinito = float("inf")
+    return (GRAVIDADE.index(item["situacao"]),
+            item["dias_restantes"] if item["dias_restantes"] is not None else infinito,
+            item["km_restante"] if item["km_restante"] is not None else infinito)
+
+
 def situacao_do_veiculo(planos):
     if not planos:
         return SituacaoManutencao.SEM_PLANO
@@ -122,17 +139,19 @@ def painel(empresa, hoje=None):
     ativos = Veiculo.objects.filter(empresa=empresa, situacao=Situacao.ATIVO).order_by(*ORDEM_DOS_VEICULOS)
     veiculos = calcular(empresa, ativos, hoje)
     contagem = {s.value: 0 for s in SituacaoManutencao}
+    # Quem já tocou em "Entendi" em cada aviso (tela Avisos do motorista)
+    vistos = {}
+    for c in CienciaAviso.objects.filter(veiculo__empresa=empresa).select_related("usuario__motorista"):
+        vistos.setdefault((c.veiculo_id, c.plano_id, c.referencia), []).append(c.usuario.nome_exibicao)
     pendencias = []
     for v in veiculos:
         contagem[v["situacao"]] += 1  # cada veículo conta uma vez, pela situação mais grave
         for p in v["planos"]:
-            if p["situacao"] in (SituacaoManutencao.VENCIDA, SituacaoManutencao.PROXIMA):
+            if pendente(p):
                 pendencias.append({"placa": v["placa"], "identificacao": v["identificacao"], "marca": v["marca"],
-                                   "modelo": v["modelo"], "km_atual": v["km_atual"], **p})
-    infinito = float("inf")
-    pendencias.sort(key=lambda p: (GRAVIDADE.index(p["situacao"]),
-                                   p["dias_restantes"] if p["dias_restantes"] is not None else infinito,
-                                   p["km_restante"] if p["km_restante"] is not None else infinito))
+                                   "modelo": v["modelo"], "km_atual": v["km_atual"], **p,
+                                   "visto_por": sorted(vistos.get((v["placa"], p["id_plano"], referencia(p)), []))})
+    pendencias.sort(key=ordem_de_urgencia)
     hoje = hoje or timezone.localdate()
     realizadas = OrdemServico.objects.filter(
         veiculo__empresa=empresa, status=OrdemServico.Status.CONCLUIDA,

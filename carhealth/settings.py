@@ -55,18 +55,31 @@ WSGI_APPLICATION = "carhealth.wsgi.application"
 # ---------------------------------------------------------------------------
 # Banco de dados PostgreSQL (valores lidos do .env)
 # ATOMIC_REQUESTS: cada requisição é uma transação — se der erro, nada é gravado.
+#
+# DB_ENGINE=sqlite no .env usa um arquivo local (db.sqlite3) no lugar do
+# PostgreSQL: serve para rodar/demonstrar em uma máquina sem o PostgreSQL
+# instalado. O banco oficial do projeto continua sendo o PostgreSQL.
 # ---------------------------------------------------------------------------
-DATABASES = {
-    "default": {
-        "ENGINE": "django.db.backends.postgresql",
-        "NAME": os.getenv("DB_NAME", "carhealth"),
-        "USER": os.getenv("DB_USER", "carhealth"),
-        "PASSWORD": os.getenv("DB_PASSWORD", ""),
-        "HOST": os.getenv("DB_HOST", "localhost"),
-        "PORT": os.getenv("DB_PORT", "5432"),
-        "ATOMIC_REQUESTS": True,
+if os.getenv("DB_ENGINE", "postgresql").lower() == "sqlite":
+    DATABASES = {
+        "default": {
+            "ENGINE": "django.db.backends.sqlite3",
+            "NAME": BASE_DIR / "db.sqlite3",
+            "ATOMIC_REQUESTS": True,
+        }
     }
-}
+else:
+    DATABASES = {
+        "default": {
+            "ENGINE": "django.db.backends.postgresql",
+            "NAME": os.getenv("DB_NAME", "carhealth"),
+            "USER": os.getenv("DB_USER", "carhealth"),
+            "PASSWORD": os.getenv("DB_PASSWORD", ""),
+            "HOST": os.getenv("DB_HOST", "localhost"),
+            "PORT": os.getenv("DB_PORT", "5432"),
+            "ATOMIC_REQUESTS": True,
+        }
+    }
 
 # ---------------------------------------------------------------------------
 # Autenticação

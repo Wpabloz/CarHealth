@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import { AlarmClock, ArrowRight, Calendar, CircleAlert, CircleCheck, Lightbulb, Asterisk, TriangleAlert, Truck } from "lucide-react";
+import { AlarmClock, ArrowRight, Asterisk, Calendar, CircleAlert, CircleCheck, Eye, Lightbulb, TriangleAlert, Truck } from "lucide-react";
 
 import {
   BotaoLink, Cabecalho, Carregando, IconeQuadrado, Selo, SeloPrazo, Vazio,
@@ -79,6 +79,11 @@ export default function Lembretes() {
                     {p.ultima_execucao && ` Última execução em ${data(p.ultima_execucao.data)} com ${km(p.ultima_execucao.quilometragem)}.`}
                     {` Odômetro atual: ${km(p.km_atual)}.`}
                   </p>
+                  {p.visto_por?.length > 0 && (
+                    <span className="lembrete-cartao__visto">
+                      <Eye size={14} aria-hidden="true" /> {p.visto_por.join(" e ")} já {p.visto_por.length > 1 ? "viram" : "viu"} este aviso no app
+                    </span>
+                  )}
                 </div>
                 <div className="lembrete-cartao__acoes">
                   <BotaoLink icone={CircleCheck} to={`/manutencoes/nova?veiculo=${p.placa}&plano=${p.id_plano}`}>

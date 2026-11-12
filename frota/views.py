@@ -21,10 +21,20 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from contas.models import Empresa, Situacao
-from contas.permissoes import PermissaoPorPerfil, SomenteGestor
+from contas.permissoes import ExigeCheckinDoDia, PermissaoPorPerfil, SomenteGestor
 
 from . import manutencao, serializers
-from .models import ORDEM_DOS_VEICULOS, LeituraOdometro, Motorista, OrdemServico, PlanoManutencao, Veiculo
+from .models import (
+    ORDEM_DOS_VEICULOS,
+    Checkin,
+    CienciaAviso,
+    LeituraOdometro,
+    Motorista,
+    OrdemServico,
+    PlanoManutencao,
+    Problema,
+    Veiculo,
+)
 
 
 class DaEmpresaViewSet(viewsets.ModelViewSet):
@@ -36,13 +46,15 @@ class DaEmpresaViewSet(viewsets.ModelViewSet):
     filtros:          parâmetros aceitos na URL, ex.: /api/veiculos?situacao=ATIVO
     acoes_motorista:  ações liberadas ao perfil MOTORISTA (o resto é só do GESTOR).
     filtro_motorista: o que o MOTORISTA enxerga, ex.: só veículos ativos.
+    acoes_sem_checkin: ações do MOTORISTA liberadas mesmo sem o check-in do dia (Sprint 5).
     """
 
-    permission_classes = [PermissaoPorPerfil]
+    permission_classes = [PermissaoPorPerfil, ExigeCheckinDoDia]
     caminho_empresa = "empresa"
     filtros = {}
     acoes_motorista = ()
     filtro_motorista = {}
+    acoes_sem_checkin = ()
 
     def get_queryset(self):
         if getattr(self, "swagger_fake_view", False):  # geração da documentação Swagger
@@ -73,8 +85,11 @@ class VeiculoViewSet(DaEmpresaViewSet):
     serializer_class = serializers.VeiculoSerializer
     # ?placa=ABC busca por parte da placa (RF10, RF34)
     filtros = {"situacao": "situacao", "tipo": "tipo__iexact", "placa": "placa__icontains"}
-    acoes_motorista = ("list", "retrieve", "situacao")
+    acoes_motorista = ("list", "retrieve", "situacao", "avisos", "entendi")
     filtro_motorista = {"situacao": Situacao.ATIVO}  # o motorista só vê veículos ativos (RF34)
+    # "retrieve" e "situacao" ficam liberados antes do check-in: são a tela "Este é o seu
+    # caminhão?", que mostra placa, modelo, km e manutenção depois da leitura do QR code (Sprint 5).
+    acoes_sem_checkin = ("retrieve", "situacao")
 
     @extend_schema(responses=serializers.SituacaoVeiculoSerializer)
     @action(detail=True, methods=["get"])
@@ -83,6 +98,39 @@ class VeiculoViewSet(DaEmpresaViewSet):
         veiculo = self.get_object()
         dados = manutencao.calcular(request.user.empresa, Veiculo.objects.filter(pk=veiculo.pk))[0]
         return Response(serializers.SituacaoVeiculoSerializer(dados).data)
+
+    def avisos_do_veiculo(self, veiculo):
+        dados = manutencao.calcular(self.request.user.empresa, Veiculo.objects.filter(pk=veiculo.pk))[0]
+        vistos = set(CienciaAviso.objects.filter(usuario=self.request.user, veiculo=veiculo)
+                     .values_list("plano_id", "referencia"))
+        itens = [{**p, "referencia": manutencao.referencia(p),
+                  "visto": (p["id_plano"], manutencao.referencia(p)) in vistos}
+                 for p in dados["planos"] if manutencao.pendente(p)]
+        return sorted(itens, key=manutencao.ordem_de_urgencia)
+
+    @extend_schema(responses=serializers.AvisoSerializer(many=True))
+    @action(detail=True, methods=["get"])
+    def avisos(self, request, pk=None):
+        """
+        GET /api/veiculos/{placa}/avisos — manutenções atrasadas ou próximas do veículo (tela
+        "Avisos" do motorista), da mais urgente, com visto=true se quem está logado já tocou em "Entendi".
+        """
+        return Response(serializers.AvisoSerializer(self.avisos_do_veiculo(self.get_object()), many=True).data)
+
+    @extend_schema(request=None, responses={200: serializers.AvisoSerializer, 404: None})
+    @action(detail=True, methods=["post"], url_path=r"avisos/(?P<id_plano>\d+)/entendi")
+    def entendi(self, request, pk=None, id_plano=None):
+        """
+        POST /api/veiculos/{placa}/avisos/{id_plano}/entendi — o motorista confirma que viu o aviso;
+        o gestor vê quem confirmou no painel (pendencias[].visto_por).
+        """
+        veiculo = self.get_object()
+        aviso = next((a for a in self.avisos_do_veiculo(veiculo) if a["id_plano"] == int(id_plano)), None)
+        if aviso is None:
+            return Response({"detail": "Este aviso não está mais pendente."}, status=status.HTTP_404_NOT_FOUND)
+        CienciaAviso.objects.get_or_create(usuario=request.user, veiculo=veiculo, plano_id=aviso["id_plano"],
+                                           referencia=aviso["referencia"])
+        return Response(serializers.AvisoSerializer({**aviso, "visto": True}).data)
 
     @extend_schema(responses={200: {"type": "array", "items": {"type": "string"}}})
     @action(detail=False, methods=["get"])
@@ -202,6 +250,68 @@ class OrdemServicoViewSet(DaEmpresaViewSet):
         ordem.status = OrdemServico.Status.CANCELADA
         ordem.save()
         return Response(self.get_serializer(ordem).data)
+
+
+class CheckinViewSet(DaEmpresaViewSet):
+    """
+    /api/checkins (Sprint 5): o motorista faz o check-in do dia por veículo; o gestor consulta.
+    Sem DELETE nem edição: o check-in, como a leitura que ele gera, não se altera (RN15).
+    """
+
+    queryset = Checkin.objects.select_related("veiculo", "usuario")
+    serializer_class = serializers.CheckinSerializer
+    caminho_empresa = "veiculo__empresa"
+    http_method_names = ["get", "post", "head", "options"]
+    filtros = {"veiculo": "veiculo__placa__iexact", "data_checkin": "data_checkin"}
+    acoes_motorista = ("create", "list", "retrieve", "hoje")
+    # Nenhuma ação deste ViewSet exige check-in prévio: é ele quem o concede.
+    acoes_sem_checkin = ("create", "list", "retrieve", "hoje")
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        if self.request.user.is_motorista:  # o motorista só vê os próprios check-ins
+            qs = qs.filter(usuario=self.request.user)
+        return qs
+
+    def perform_create(self, serializer):
+        # Checkin não tem campo "empresa" próprio (vem do veículo); o serializer já
+        # grava usuario e data_checkin a partir da requisição.
+        serializer.save()
+
+    @extend_schema(responses={200: serializers.CheckinSerializer, 404: None})
+    @action(detail=False, methods=["get"])
+    def hoje(self, request):
+        """GET /api/checkins/hoje — o check-in de hoje do motorista logado, se houver (RNF08)."""
+        checkin = Checkin.objects.filter(usuario=request.user, data_checkin=timezone.localdate()).first()
+        if checkin is None:
+            return Response(status=status.HTTP_404_NOT_FOUND)
+        return Response(self.get_serializer(checkin).data)
+
+
+class ProblemaViewSet(DaEmpresaViewSet):
+    """
+    /api/problemas (Sprint 5): o motorista avisa (exige check-in do dia) e acompanha os
+    próprios avisos; o gestor vê todos e muda a situação (ABERTO -> EM_ANALISE -> RESOLVIDO).
+    Sem DELETE: o aviso fica guardado mesmo depois de resolvido.
+    """
+
+    queryset = Problema.objects.select_related("veiculo", "usuario__motorista")
+    serializer_class = serializers.ProblemaSerializer
+    caminho_empresa = "veiculo__empresa"
+    http_method_names = ["get", "post", "patch", "head", "options"]
+    filtros = {"veiculo": "veiculo__placa__iexact", "situacao": "situacao"}
+    acoes_motorista = ("create", "list", "retrieve")
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        if self.request.user.is_motorista:  # o motorista acompanha só os próprios avisos
+            qs = qs.filter(usuario=self.request.user)
+        return qs
+
+    def perform_create(self, serializer):
+        # Só o MOTORISTA chega aqui com create em acoes_motorista; o GESTOR também pode
+        # relatar (ex.: de posse do veículo), por isso usuario vem sempre de quem está logado.
+        serializer.save(usuario=self.request.user)
 
 
 class PainelView(APIView):

@@ -10,6 +10,8 @@ router.register("veiculos", views.VeiculoViewSet, basename="veiculo")
 router.register("planos-manutencao", views.PlanoManutencaoViewSet, basename="plano")
 router.register("leituras-odometro", views.LeituraOdometroViewSet, basename="leitura")
 router.register("ordens-servico", views.OrdemServicoViewSet, basename="ordem")
+router.register("checkins", views.CheckinViewSet, basename="checkin")
+router.register("problemas", views.ProblemaViewSet, basename="problema")
 
 urlpatterns = [
     path("painel", views.PainelView.as_view(), name="painel"),

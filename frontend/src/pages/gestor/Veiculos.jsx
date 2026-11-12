@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { CircleCheck, Clock, History, Lightbulb, Pencil, Plus, Search, TriangleAlert, Truck } from "lucide-react";
+import { CircleCheck, Clock, History, Lightbulb, Pencil, Plus, QrCode, Search, TriangleAlert, Truck } from "lucide-react";
 
 import { get, query } from "../../api/client";
 import Placa from "../../components/Placa";
@@ -10,6 +10,7 @@ import {
 import { useResumo } from "../../layouts/resumo";
 import { km, marcaModelo, nomeVeiculo, plural, porGravidade } from "../../lib/formato";
 import { useCarregar } from "../../lib/useCarregar";
+import QrCodeModal from "./QrCodeModal";
 import VeiculoModal from "./VeiculoModal";
 
 /** "Veículos Cadastrados" do protótipo: a frota, o estado de cada veículo e o cadastro em janela. */
@@ -21,6 +22,7 @@ export default function Veiculos() {
   const [situacao, setSituacao] = useState("ATIVO");
   const [modal, setModal] = useState({ aberto: Boolean(state?.cadastrar), veiculo: null });
   const [aviso, setAviso] = useState("");
+  const [qr, setQr] = useState(null); // veículo da janela "QR code do veículo"
   const lista = useCarregar(() => get(`/veiculos${query({ situacao })}`), [situacao]);
 
   useEffect(() => {
@@ -111,6 +113,10 @@ export default function Veiculos() {
                           : <SeloManutencao situacao={s?.situacao || "SEM_PLANO"} />}
                     </span>
                     <span className="lista-veiculos__acoes">
+                      {v.situacao === "ATIVO" && (
+                        <Botao variante="icone" icone={QrCode} aria-label={`QR code do ${nomeVeiculo(v)}`}
+                          title="QR code para o check-in" onClick={() => setQr(v)} />
+                      )}
                       <BotaoLink variante="suave" tamanho="p" icone={History} to={`/historico/${v.placa}`}>Histórico</BotaoLink>
                       <Botao variante="icone" icone={Pencil} aria-label={`Editar ${nomeVeiculo(v)}`}
                         onClick={() => setModal({ aberto: true, veiculo: v })} />
@@ -135,6 +141,7 @@ export default function Veiculos() {
         <BotaoLink variante="contorno" to="/planos">Ver planos</BotaoLink>
       </section>
 
+      <QrCodeModal veiculo={qr} aoFechar={() => setQr(null)} />
       <VeiculoModal aberto={modal.aberto} veiculo={modal.veiculo} aoSalvar={aoSalvar} aoExcluir={aoExcluir}
         aoFechar={() => setModal({ aberto: false, veiculo: null })} />
     </>

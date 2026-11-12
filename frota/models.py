@@ -110,6 +110,7 @@ class LeituraOdometro(models.Model):
         MANUAL = "MANUAL", "Manual"
         ORDEM_SERVICO = "ORDEM_SERVICO", "Ordem de serviço"
         AJUSTE_ODOMETRO = "AJUSTE_ODOMETRO", "Ajuste de odômetro"
+        CHECKIN = "CHECKIN", "Check-in"  # gerada junto com o check-in do motorista (Sprint 5)
 
     codigo = models.AutoField(primary_key=True)
     data_leitura = models.DateField("data da leitura")
@@ -188,3 +189,127 @@ class OrdemServico(models.Model):
 
     def __str__(self):
         return f"OS {self.numero} - {self.veiculo_id}"
+
+
+class Checkin(models.Model):
+    """
+    Check-in do motorista por QR code (Sprint 5, Cap. 5): obrigatório antes das demais
+    ações do dia. Gera, na mesma transação, a leitura de odômetro informada (RN03).
+    """
+
+    class EstadoGeral(models.TextChoices):
+        BOM = "BOM", "Bom"
+        REGULAR = "REGULAR", "Regular"
+        RUIM = "RUIM", "Ruim"
+
+    id_checkin = models.AutoField(primary_key=True)
+    veiculo = models.ForeignKey(
+        Veiculo, verbose_name="veículo", on_delete=models.PROTECT,
+        db_column="placa_veiculo", related_name="checkins"
+    )
+    usuario = models.ForeignKey(
+        settings.AUTH_USER_MODEL, verbose_name="usuário", on_delete=models.PROTECT,
+        db_column="email_usuario", related_name="checkins"
+    )
+    data_checkin = models.DateField("data do check-in")
+    estado_geral = models.CharField(max_length=20, choices=EstadoGeral.choices)
+    # Obrigatória quando o estado não é BOM (regra aplicada no serializer)
+    observacao = models.CharField(max_length=255, null=True, blank=True)
+    leitura = models.OneToOneField(
+        LeituraOdometro, verbose_name="leitura de odômetro", on_delete=models.PROTECT,
+        db_column="codigo_leitura", related_name="checkin"
+    )
+
+    class Meta:
+        db_table = "checkin"
+        ordering = ["-data_checkin", "-id_checkin"]
+        verbose_name = "check-in"
+        # Um check-in por motorista, veículo e dia
+        constraints = [
+            models.UniqueConstraint(fields=["usuario", "veiculo", "data_checkin"],
+                                    name="uq_checkin_usuario_veiculo_dia")
+        ]
+
+    def __str__(self):
+        return f"Check-in {self.veiculo_id} - {self.usuario_id} em {self.data_checkin:%d/%m/%Y}"
+
+
+class Problema(models.Model):
+    """
+    Aviso de problema feito pelo motorista (Sprint 5, tela "Avisar problema" do protótipo):
+    onde está o problema, se o caminhão pode continuar rodando e, se quiser, uma explicação.
+    Só o gestor muda a situação.
+    """
+
+    class Componente(models.TextChoices):
+        FREIO = "FREIO", "Freio"
+        MOTOR = "MOTOR", "Motor"
+        PNEU = "PNEU", "Pneu"
+        LUZES = "LUZES", "Luzes"
+        GUINCHO = "GUINCHO", "Guincho"
+        OUTRO = "OUTRO", "Outro"
+
+    class Situacao(models.TextChoices):
+        ABERTO = "ABERTO", "Aberto"              # motorista vê: "O responsável já recebeu"
+        EM_ANALISE = "EM_ANALISE", "Em análise"  # motorista vê: "O responsável está vendo"
+        RESOLVIDO = "RESOLVIDO", "Resolvido"
+
+    id_problema = models.AutoField(primary_key=True)
+    veiculo = models.ForeignKey(
+        Veiculo, verbose_name="veículo", on_delete=models.PROTECT,
+        db_column="placa_veiculo", related_name="problemas"
+    )
+    usuario = models.ForeignKey(
+        settings.AUTH_USER_MODEL, verbose_name="usuário", on_delete=models.PROTECT,
+        db_column="email_usuario", related_name="problemas"
+    )
+    data_hora = models.DateTimeField("data e hora", auto_now_add=True)
+    componente = models.CharField("onde está o problema", max_length=20, choices=Componente.choices)
+    pode_rodar = models.BooleanField("o caminhão pode continuar rodando?")
+    descricao = models.CharField("explicação", max_length=500, blank=True, default="")
+    situacao = models.CharField(max_length=20, choices=Situacao.choices, default=Situacao.ABERTO)
+
+    class Meta:
+        db_table = "problema"
+        ordering = ["-data_hora", "-id_problema"]
+        verbose_name = "problema relatado"
+        verbose_name_plural = "problemas relatados"
+
+    def __str__(self):
+        return f"{self.get_componente_display()} em {self.veiculo_id} - {self.get_situacao_display()}"
+
+
+class CienciaAviso(models.Model):
+    """
+    "Entendi" do motorista num aviso de manutenção (tela "Avisos" do protótipo), para o
+    gestor saber que ele viu. O aviso é identificado pelo plano e pela previsão (data e km):
+    depois que a manutenção é feita, a próxima previsão é um aviso novo.
+    """
+
+    id_ciencia = models.AutoField(primary_key=True)
+    usuario = models.ForeignKey(
+        settings.AUTH_USER_MODEL, verbose_name="usuário", on_delete=models.PROTECT,
+        db_column="email_usuario", related_name="ciencias"
+    )
+    veiculo = models.ForeignKey(
+        Veiculo, verbose_name="veículo", on_delete=models.PROTECT,
+        db_column="placa_veiculo", related_name="ciencias"
+    )
+    plano = models.ForeignKey(
+        PlanoManutencao, verbose_name="plano", on_delete=models.PROTECT,
+        db_column="id_plano", related_name="ciencias"
+    )
+    referencia = models.CharField("previsão do aviso (data|km)", max_length=40)
+    data_hora = models.DateTimeField("data e hora", auto_now_add=True)
+
+    class Meta:
+        db_table = "ciencia_aviso"
+        verbose_name = "ciência de aviso"
+        verbose_name_plural = "ciências de avisos"
+        constraints = [
+            models.UniqueConstraint(fields=["usuario", "veiculo", "plano", "referencia"],
+                                    name="uq_ciencia_usuario_aviso")
+        ]
+
+    def __str__(self):
+        return f"{self.usuario_id} viu {self.plano_id} em {self.veiculo_id}"
