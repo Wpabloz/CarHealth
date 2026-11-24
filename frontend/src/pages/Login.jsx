@@ -31,7 +31,8 @@ export default function Login() {
         <Campo rotulo="E-mail" type="email" autoComplete="email" required value={f.valores.email}
           onChange={f.mudar("email")} erro={f.erros.email} />
         <Campo rotulo="Senha" type="password" autoComplete="current-password" required value={f.valores.senha}
-          onChange={f.mudar("senha")} erro={f.erros.password} />
+          onChange={f.mudar("senha")} erro={f.erros.password}
+          dica={<Link to="/esqueci-senha">Esqueci minha senha</Link>} />
         <Botao type="submit" carregando={f.enviando} className="botao--largo">
           Entrar
         </Botao>

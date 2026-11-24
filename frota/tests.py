@@ -1,5 +1,6 @@
 from datetime import date, timedelta
 
+from django.core.cache import cache
 from django.utils import timezone
 from rest_framework.test import APITestCase
 
@@ -12,6 +13,7 @@ SENHA = "SenhaForte#2026"
 
 class BaseTest(APITestCase):
     def setUp(self):
+        cache.clear()  # zera o limite de tentativas de login entre um teste e outro
         self.empresa = Empresa.objects.create(cnpj="11222333000181", razao_social="A",
                                               telefone="1", email="a@a.com")
         self.outra = Empresa.objects.create(cnpj="45723174000110", razao_social="B",
@@ -697,3 +699,65 @@ class PopularDemoTest(APITestCase):
         self.assertEqual((aviso.veiculo_id, aviso.descricao, aviso.situacao), ("RSV2B47", "Barulho ao frear", "EM_ANALISE"))
         call_command("popular_demo", "--recriar", stdout=StringIO())
         self.assertEqual((Veiculo.objects.count(), Problema.objects.count()), (4, 1))
+
+
+class CustoEPeriodoTest(BaseTest):
+    """RF30 (custo acumulado por veículo) e RF31 (histórico filtrado por período)."""
+
+    def ordem(self, numero, concluida_em=None, valor=None, aberta_em=None, status=None, veiculo=None):
+        return OrdemServico.objects.create(
+            numero=numero, descricao=f"Serviço {numero}", veiculo=veiculo or self.veiculo, emitente=self.gestor,
+            data_abertura=aberta_em or concluida_em, data_conclusao=concluida_em, valor=valor,
+            quilometragem=1000 * numero if concluida_em else None,
+            status=status or (OrdemServico.Status.CONCLUIDA if concluida_em else OrdemServico.Status.ABERTA))
+
+    def setUp(self):
+        super().setUp()
+        self.ordem(1, date(2026, 1, 10), "300.00")
+        self.ordem(2, date(2026, 3, 5), "450.50")
+        self.ordem(3, date(2026, 6, 20), "1000.00")
+        self.ordem(4, aberta_em=date(2026, 3, 1))                                   # aberta: não entra no custo
+        self.ordem(5, aberta_em=date(2026, 3, 2), status=OrdemServico.Status.CANCELADA)  # cancelada: idem
+
+    def test_custo_acumulado_geral_e_no_periodo(self):
+        resp = self.client.get("/api/veiculos/ABC1D23/custos")
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.data["total_geral"], "1750.50")
+        self.assertEqual(resp.data["quantidade_geral"], 3)
+        self.assertEqual(resp.data["total"], "1750.50")  # sem período = tudo
+
+        resp = self.client.get("/api/veiculos/ABC1D23/custos?de=2026-02-01&ate=2026-06-30")
+        self.assertEqual((resp.data["total"], resp.data["quantidade"]), ("1450.50", 2))
+        self.assertEqual(resp.data["total_geral"], "1750.50")
+        self.assertEqual(resp.data["de"], "2026-02-01")
+
+    def test_custo_sem_ordens_e_zero(self):
+        Veiculo.objects.create(placa="QWE4R56", marca="Fiat", modelo="Strada", ano=2023, tipo="PICAPE",
+                               empresa=self.empresa)
+        resp = self.client.get("/api/veiculos/QWE4R56/custos")
+        self.assertEqual((resp.data["total_geral"], resp.data["quantidade_geral"]), ("0.00", 0))
+
+    def test_custo_so_para_o_gestor_e_da_propria_empresa(self):
+        self.como_motorista()
+        self.checkin()
+        self.assertEqual(self.client.get("/api/veiculos/ABC1D23/custos").status_code, 403)  # valores: RN16
+        outro = Usuario.objects.create_user("g@b.com", SENHA, nome="B", empresa=self.outra, perfil="GESTOR")
+        self.client.force_authenticate(outro)
+        self.assertEqual(self.client.get("/api/veiculos/ABC1D23/custos").status_code, 404)
+
+    def test_historico_por_periodo(self):
+        url = "/api/ordens-servico?veiculo=ABC1D23"
+        numeros = lambda resp: sorted(o["numero"] for o in resp.data)  # noqa: E731
+        self.assertEqual(numeros(self.client.get(url)), [1, 2, 3, 4, 5])
+        self.assertEqual(numeros(self.client.get(f"{url}&de=2026-03-01&ate=2026-03-31")), [2, 4, 5])
+        self.assertEqual(numeros(self.client.get(f"{url}&de=2026-06-01")), [3])
+        self.assertEqual(numeros(self.client.get(f"{url}&ate=2026-01-31")), [1])
+        self.assertEqual(numeros(self.client.get(f"{url}&status=CONCLUIDA&de=2026-03-01")), [2, 3])
+
+    def test_periodo_invalido(self):
+        resp = self.client.get("/api/ordens-servico?de=01/03/2026")
+        self.assertEqual(resp.status_code, 400)
+        self.assertIn("de", resp.data)
+        resp = self.client.get("/api/veiculos/ABC1D23/custos?de=2026-05-01&ate=2026-04-01")
+        self.assertEqual(resp.status_code, 400)
+        self.assertIn("ate", resp.data)

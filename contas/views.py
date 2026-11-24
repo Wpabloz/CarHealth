@@ -12,9 +12,13 @@ from rest_framework.response import Response
 
 from .models import Empresa, Situacao, Usuario
 from .permissoes import SomenteGestor
+from rest_framework_simplejwt.views import TokenObtainPairView
+
+from .limites import LimiteLogin, LimiteRecuperarSenha
+from .recuperar_senha import enviar_link
 from .serializers import (
-    EmpresaSerializer, MeuPerfilSerializer, RegistrarSerializer, TokensSerializer, TrocarSenhaSerializer,
-    UsuarioSerializer,
+    EmpresaSerializer, EsqueciSenhaSerializer, MeuPerfilSerializer, RedefinirSenhaSerializer, RegistrarSerializer,
+    TokensSerializer, TrocarSenhaSerializer, UsuarioSerializer,
 )
 from .sessao import gerar_tokens, revogar_sessoes
 
@@ -129,3 +133,55 @@ class UsuarioViewSet(viewsets.ModelViewSet):
         if instance == self.request.user:
             raise ValidationError("Você não pode excluir o próprio usuário.")
         instance.delete()
+
+
+class LoginView(TokenObtainPairView):
+    """
+    POST /api/auth/login — e-mail + senha -> tokens. Igual ao do Simple JWT, com limite de
+    tentativas: errou demais seguidas, a API responde 429 e é preciso esperar (LIMITE_LOGIN no .env).
+    """
+
+    throttle_classes = [LimiteLogin]
+
+
+class EsqueciSenhaView(generics.GenericAPIView):
+    """
+    POST /api/auth/esqueci-senha — envia o link para criar uma nova senha.
+    A resposta é a mesma exista o e-mail ou não, para não revelar quais contas existem.
+    """
+
+    permission_classes = [AllowAny]
+    authentication_classes = []
+    throttle_classes = [LimiteRecuperarSenha]
+    serializer_class = EsqueciSenhaSerializer
+
+    @extend_schema(responses={200: None})
+    def post(self, request):
+        dados = self.get_serializer(data=request.data)
+        dados.is_valid(raise_exception=True)
+        usuario = Usuario.objects.filter(email=dados.validated_data["email"]).first()
+        if usuario is not None and usuario.is_active:
+            enviar_link(usuario)
+        return Response({"detail": "Se o e-mail estiver cadastrado, enviamos um link para criar uma nova senha."})
+
+
+class RedefinirSenhaView(generics.GenericAPIView):
+    """
+    POST /api/auth/redefinir-senha — grava a nova senha a partir do link do e-mail.
+    Todas as sessões abertas da conta caem; depois é só entrar com a senha nova.
+    """
+
+    permission_classes = [AllowAny]
+    authentication_classes = []
+    throttle_classes = [LimiteRecuperarSenha]
+    serializer_class = RedefinirSenhaSerializer
+
+    @extend_schema(responses={200: None})
+    def post(self, request):
+        dados = self.get_serializer(data=request.data)
+        dados.is_valid(raise_exception=True)
+        usuario = dados.validated_data["usuario"]
+        usuario.set_password(dados.validated_data["nova_senha"])
+        usuario.save(update_fields=["password"])
+        revogar_sessoes(usuario)
+        return Response({"detail": "Senha alterada. Entre com a nova senha."})

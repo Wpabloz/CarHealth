@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef } from "react";
 import { Link, NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import {
-  Bell, ClipboardList, History, LayoutDashboard, LogOut, Truck, Users, Wrench,
+  AlertTriangle, Bell, ClipboardList, History, LayoutDashboard, LogOut, Truck, Users, Wrench,
 } from "lucide-react";
 
 import { get } from "../api/client";
@@ -18,6 +18,7 @@ const MENU = [
   { para: "/manutencoes", rotulo: "Manutenções", icone: Wrench },
   { para: "/lembretes", rotulo: "Lembretes", icone: Bell, contador: true },
   { para: "/historico", rotulo: "Histórico", icone: History },
+  { para: "/ocorrencias", rotulo: "Ocorrências", icone: AlertTriangle },
 ];
 const CADASTROS = [
   { para: "/motoristas", rotulo: "Motoristas", icone: Users },

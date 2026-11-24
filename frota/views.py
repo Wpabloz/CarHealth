@@ -10,10 +10,13 @@ Cada ViewSet já entrega as 5 operações do CRUD:
 
 Perfis (RN16): o GESTOR faz tudo; o MOTORISTA só o que estiver em acoes_motorista.
 """
+from datetime import date
+
 from django.db import transaction
-from django.db.models import Max
+from django.db.models import Count, Max, Sum
+from django.db.models.functions import Coalesce
 from django.utils import timezone
-from drf_spectacular.utils import extend_schema
+from drf_spectacular.utils import OpenApiParameter, extend_schema
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
 from rest_framework.exceptions import ValidationError
@@ -35,6 +38,46 @@ from .models import (
     Problema,
     Veiculo,
 )
+
+
+
+def periodo_da_url(request):
+    """
+    Lê ?de=AAAA-MM-DD&ate=AAAA-MM-DD (RF31). Os dois são opcionais; data inválida ou
+    "de" depois de "ate" devolvem 400 com a mensagem no campo.
+    """
+    datas = {}
+    for nome in ("de", "ate"):
+        texto = request.query_params.get(nome)
+        if not texto:
+            datas[nome] = None
+            continue
+        try:
+            datas[nome] = date.fromisoformat(texto)
+        except ValueError:
+            raise ValidationError({nome: "Data inválida. Use o formato AAAA-MM-DD."}) from None
+    if datas["de"] and datas["ate"] and datas["de"] > datas["ate"]:
+        raise ValidationError({"ate": "A data final não pode ser antes da inicial."})
+    return datas["de"], datas["ate"]
+
+
+def no_periodo(qs, de, ate):
+    """
+    Filtra as ordens pela data em que o serviço aconteceu: a da conclusão, ou a da
+    abertura enquanto a ordem não foi concluída.
+    """
+    qs = qs.annotate(data_referencia=Coalesce("data_conclusao", "data_abertura"))
+    if de:
+        qs = qs.filter(data_referencia__gte=de)
+    if ate:
+        qs = qs.filter(data_referencia__lte=ate)
+    return qs
+
+
+PARAMETROS_PERIODO = [
+    OpenApiParameter("de", str, description="Data inicial (AAAA-MM-DD), inclusive"),
+    OpenApiParameter("ate", str, description="Data final (AAAA-MM-DD), inclusive"),
+]
 
 
 class DaEmpresaViewSet(viewsets.ModelViewSet):
@@ -132,6 +175,25 @@ class VeiculoViewSet(DaEmpresaViewSet):
                                            referencia=aviso["referencia"])
         return Response(serializers.AvisoSerializer({**aviso, "visto": True}).data)
 
+    @extend_schema(parameters=PARAMETROS_PERIODO, responses=serializers.CustoVeiculoSerializer)
+    @action(detail=True, methods=["get"])
+    def custos(self, request, pk=None):
+        """
+        GET /api/veiculos/{placa}/custos?de=&ate= — custo acumulado do veículo (RF30): soma do
+        valor das ordens CONCLUÍDAS, no período pedido e desde o início. Só o GESTOR (RN16).
+        """
+        veiculo = self.get_object()
+        de, ate = periodo_da_url(request)
+        concluidas = OrdemServico.objects.filter(veiculo=veiculo, status=OrdemServico.Status.CONCLUIDA)
+        soma = lambda qs: qs.aggregate(total=Sum("valor"), quantidade=Count("pk"))  # noqa: E731
+        geral = soma(concluidas)
+        periodo = soma(no_periodo(concluidas, de, ate))
+        return Response(serializers.CustoVeiculoSerializer({
+            "placa": veiculo.placa, "de": de, "ate": ate,
+            "total": periodo["total"] or 0, "quantidade": periodo["quantidade"],
+            "total_geral": geral["total"] or 0, "quantidade_geral": geral["quantidade"],
+        }).data)
+
     @extend_schema(responses={200: {"type": "array", "items": {"type": "string"}}})
     @action(detail=False, methods=["get"])
     def tipos(self, request):
@@ -177,6 +239,17 @@ class OrdemServicoViewSet(DaEmpresaViewSet):
     acoes_motorista = ("list", "retrieve")
     # o motorista vê só o histórico (ordens concluídas) dos veículos ativos, sem valores (RF36)
     filtro_motorista = {"veiculo__situacao": Situacao.ATIVO, "status": OrdemServico.Status.CONCLUIDA}
+
+    @extend_schema(parameters=PARAMETROS_PERIODO)
+    def list(self, request, *args, **kwargs):
+        """GET /api/ordens-servico?veiculo=&status=&de=&ate= — histórico, com filtro por período (RF31)."""
+        return super().list(request, *args, **kwargs)
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        if self.action == "list":
+            qs = no_periodo(qs, *periodo_da_url(self.request))
+        return qs
 
     def proximo_numero(self):
         # Trava a linha da empresa: duas aberturas ao mesmo tempo não recebem o mesmo número
@@ -258,7 +331,7 @@ class CheckinViewSet(DaEmpresaViewSet):
     Sem DELETE nem edição: o check-in, como a leitura que ele gera, não se altera (RN15).
     """
 
-    queryset = Checkin.objects.select_related("veiculo", "usuario")
+    queryset = Checkin.objects.select_related("veiculo", "usuario__motorista", "leitura")
     serializer_class = serializers.CheckinSerializer
     caminho_empresa = "veiculo__empresa"
     http_method_names = ["get", "post", "head", "options"]

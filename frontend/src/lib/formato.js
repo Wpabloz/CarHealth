@@ -110,7 +110,9 @@ export const SITUACAO_CADASTRO = {
   ATIVO: { rotulo: "Ativo", tom: "ok" },
   INATIVO: { rotulo: "Inativo", tom: "neutro" },
 };
-export const ORIGEM_LEITURA = { MANUAL: "Manual", ORDEM_SERVICO: "Ordem de serviço", AJUSTE_ODOMETRO: "Ajuste de odômetro" };
+export const ORIGEM_LEITURA = {
+  MANUAL: "Manual", ORDEM_SERVICO: "Ordem de serviço", AJUSTE_ODOMETRO: "Ajuste de odômetro", CHECKIN: "Check-in",
+};
 
 /** Plano: "a cada 10.000 km ou 6 meses". */
 export function intervalo(plano) {

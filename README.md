@@ -177,6 +177,10 @@ Abra **http://127.0.0.1:8000/api/docs** no navegador: é a documentação intera
 | GET 🔒 | `/auth/me` | Dados da conta logada, inclusive o `perfil` (o frontend usa para levar cada um à sua área) |
 | PATCH 🔒 | `/auth/me` | `{"nome"}`: o gestor muda o próprio nome. O nome do motorista vem do cadastro dele. E-mail, perfil e situação não mudam por aqui. |
 | POST 🔒 | `/auth/senha` | `{"senha_atual", "nova_senha"}`: troca a própria senha (gestor ou motorista). **Todas as sessões abertas da conta caem**; a resposta traz `access` e `refresh` novos para esta continuar. |
+| POST 🔓 | `/auth/esqueci-senha` | `{"email"}`: envia por e-mail o link `<FRONTEND_URL>/redefinir-senha?uid=...&token=...` (vale 1 hora). A resposta é a mesma exista a conta ou não. Sem `EMAIL_HOST` no `.env`, o e-mail aparece no terminal do backend. |
+| POST 🔓 | `/auth/redefinir-senha` | `{"uid", "token", "nova_senha"}`: grava a nova senha (regras de senha forte). O link só vale uma vez e **todas as sessões abertas da conta caem**. |
+
+**Limite de tentativas:** `/auth/login` aceita 10 tentativas por minuto e `/auth/esqueci-senha` e `/auth/redefinir-senha` 5 por hora, por IP + e-mail. Passou disso, a resposta é **429** (`LIMITE_LOGIN` e `LIMITE_RECUPERAR_SENHA` no `.env`).
 
 ### Sessões (tokens JWT)
 - O login devolve `access` (vale **15 minutos**, vai em toda chamada) e `refresh` (é a **janela de inatividade**, 30 minutos por padrão).
@@ -204,10 +208,11 @@ Cada recurso tem as 5 rotas padrão:
 | `/veiculos` 🔒 | placa | `?placa=ABC` (busca) `?situacao=` `?tipo=` | Devolve `km_atual` (`null` = sem registro), em ordem de `identificacao`. No cadastro, `quilometragem_inicial` vira a primeira leitura. Motorista: só listar/ver, e só os ativos. |
 | `/veiculos/tipos` 👑 | — | — | GET: tipos já usados pela empresa, para sugerir no cadastro. |
 | `/veiculos/{placa}/situacao` 🔒 | — | — | GET: situação de cada manutenção prevista (vencida, próxima, em dia). Motorista: só veículos ativos. |
+| `/veiculos/{placa}/custos` 👑 | — | `?de=` `?ate=` | GET (RF30): soma do `valor` das ordens concluídas: `total` no período pedido e `total_geral` desde o início. |
 | `/painel` 👑 | — | — | GET: contagem de veículos ativos por situação e pendências, vencidas primeiro. |
 | `/planos-manutencao` 👑 | id_plano | `?tipo_veiculo=` `?situacao=` | Exige `intervalo_km`, `intervalo_meses` ou ambos. |
 | `/leituras-odometro` 🔒 | codigo | `?veiculo=<placa>` | Motorista: listar, ver e registrar. Data = hoje; responsável = quem está logado. |
-| `/ordens-servico` 🔒 | numero | `?veiculo=<placa>` `?status=` | Abrir e editar é 👑. Motorista vê só as concluídas, sem `valor`. **Sem DELETE**: cancele. |
+| `/ordens-servico` 🔒 | numero | `?veiculo=<placa>` `?status=` `?de=` `?ate=` (AAAA-MM-DD, RF31) | Abrir e editar é 👑. Motorista vê só as concluídas, sem `valor`. **Sem DELETE**: cancele. |
 | `/ordens-servico/{numero}/concluir` 👑 | — | — | POST: conclui e gera a leitura de odômetro automaticamente. |
 | `/ordens-servico/{numero}/cancelar` 👑 | — | — | POST: cancela uma ordem ainda não concluída. |
 | `/ordens-servico/realizada` 👑 | — | — | POST: registra um serviço **já feito**: abre e conclui a ordem de uma vez, com a leitura. Se algo for recusado, nada é gravado. |

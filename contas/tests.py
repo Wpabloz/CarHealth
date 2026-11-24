@@ -1,3 +1,4 @@
+from django.core.cache import cache
 from django.core.exceptions import ValidationError
 from django.test import TestCase
 from rest_framework.test import APITestCase
@@ -23,6 +24,9 @@ class ValidadoresTest(TestCase):
 
 
 class AuthTest(APITestCase):
+    def setUp(self):
+        cache.clear()  # zera o limite de tentativas de login entre um teste e outro
+
     def registrar(self, **extra):
         dados = {
             "empresa": {"cnpj": "11222333000181", "razao_social": "Reboques Sueli",
@@ -86,6 +90,7 @@ class AuthTest(APITestCase):
 
 class BaseContas(APITestCase):
     def setUp(self):
+        cache.clear()  # zera o limite de tentativas de login entre um teste e outro
         self.empresa = Empresa.objects.create(cnpj="11222333000181", razao_social="A",
                                               telefone="1", email="a@a.com")
         self.outra = Empresa.objects.create(cnpj="45723174000110", razao_social="B",
@@ -252,3 +257,99 @@ class SessaoTest(BaseContas):
         refresh, access = RefreshToken(tokens["refresh"]), AccessToken(tokens["access"])
         self.assertEqual(refresh["exp"] - refresh["iat"], settings.SESSAO_INATIVIDADE_MINUTOS * 60)
         self.assertEqual(access["exp"] - access["iat"], min(15, settings.SESSAO_INATIVIDADE_MINUTOS) * 60)
+
+
+class RecuperarSenhaTest(APITestCase):
+    """Esqueci minha senha -> link por e-mail -> redefinir senha."""
+
+    def setUp(self):
+        cache.clear()  # zera o limite de tentativas entre um teste e outro
+        self.empresa = Empresa.objects.create(cnpj="11222333000181", razao_social="A", telefone="1", email="a@a.com")
+        self.usuario = Usuario.objects.create_user("g@a.com", SENHA, nome="Gestor", empresa=self.empresa,
+                                                   perfil="GESTOR")
+
+    def pedir_link(self, email="g@a.com"):
+        from django.core import mail
+        mail.outbox.clear()
+        resp = self.client.post("/api/auth/esqueci-senha", {"email": email}, format="json")
+        return resp, mail.outbox
+
+    def link_enviado(self):
+        import re
+        resp, caixa = self.pedir_link()
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(len(caixa), 1)
+        self.assertEqual(caixa[0].to, ["g@a.com"])
+        achado = re.search(r"/redefinir-senha\?uid=([^&\s]+)&token=(\S+)", caixa[0].body)
+        return achado.group(1), achado.group(2)
+
+    def redefinir(self, uid, token, nova="OutraSenha#2027"):
+        return self.client.post("/api/auth/redefinir-senha", {"uid": uid, "token": token, "nova_senha": nova},
+                                format="json")
+
+    def test_fluxo_completo(self):
+        uid, token = self.link_enviado()
+        resp = self.redefinir(uid, token)
+        self.assertEqual(resp.status_code, 200, resp.data)
+        entrar = lambda senha: self.client.post("/api/auth/login", {"email": "g@a.com", "password": senha},  # noqa: E731
+                                                format="json")
+        self.assertEqual(entrar(SENHA).status_code, 401)            # a senha antiga não vale mais
+        self.assertEqual(entrar("OutraSenha#2027").status_code, 200)
+        self.assertTrue(Usuario.objects.get(pk="g@a.com").password.startswith("bcrypt_sha256$"))
+
+    def test_link_so_pode_ser_usado_uma_vez(self):
+        uid, token = self.link_enviado()
+        self.assertEqual(self.redefinir(uid, token).status_code, 200)
+        resp = self.redefinir(uid, token, "TerceiraSenha#2028")
+        self.assertEqual(resp.status_code, 400)
+        self.assertIn("token", resp.data)
+
+    def test_token_ou_uid_invalido(self):
+        uid, token = self.link_enviado()
+        self.assertEqual(self.redefinir(uid, token[:-2] + "xx").status_code, 400)
+        self.assertEqual(self.redefinir("lixo", token).status_code, 400)
+
+    def test_senha_fraca_recusada(self):
+        uid, token = self.link_enviado()
+        resp = self.redefinir(uid, token, "12345678")
+        self.assertEqual(resp.status_code, 400)
+        self.assertIn("nova_senha", resp.data)
+
+    def test_email_desconhecido_ou_conta_inativa_mesma_resposta_sem_email(self):
+        resp_ok, _ = self.pedir_link()
+        resp, caixa = self.pedir_link("ninguem@a.com")
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.data, resp_ok.data)   # não revela se o e-mail existe
+        self.assertEqual(len(caixa), 0)
+        self.usuario.situacao = "INATIVO"
+        self.usuario.save()
+        _, caixa = self.pedir_link()
+        self.assertEqual(len(caixa), 0)
+
+    def test_redefinir_derruba_sessoes_abertas(self):
+        login = self.client.post("/api/auth/login", {"email": "g@a.com", "password": SENHA}, format="json")
+        uid, token = self.link_enviado()
+        self.redefinir(uid, token)
+        resp = self.client.post("/api/auth/refresh", {"refresh": login.data["refresh"]}, format="json")
+        self.assertEqual(resp.status_code, 401)
+
+
+class LimiteDeTentativasTest(APITestCase):
+    def setUp(self):
+        cache.clear()
+        empresa = Empresa.objects.create(cnpj="11222333000181", razao_social="A", telefone="1", email="a@a.com")
+        Usuario.objects.create_user("g@a.com", SENHA, nome="Gestor", empresa=empresa, perfil="GESTOR")
+
+    def test_login_bloqueia_depois_de_muitas_tentativas(self):
+        entrar = lambda email, senha: self.client.post(  # noqa: E731
+            "/api/auth/login", {"email": email, "password": senha}, format="json")
+        for _ in range(10):
+            self.assertEqual(entrar("g@a.com", "errada").status_code, 401)
+        self.assertEqual(entrar("g@a.com", SENHA).status_code, 429)   # até a senha certa espera
+        self.assertEqual(entrar("outro@a.com", "x").status_code, 401)  # outra conta não é afetada
+
+    def test_esqueci_senha_tem_limite(self):
+        for _ in range(5):
+            self.client.post("/api/auth/esqueci-senha", {"email": "g@a.com"}, format="json")
+        resp = self.client.post("/api/auth/esqueci-senha", {"email": "g@a.com"}, format="json")
+        self.assertEqual(resp.status_code, 429)

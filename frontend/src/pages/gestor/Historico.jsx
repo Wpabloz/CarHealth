@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Link, Navigate, useLocation, useNavigate, useParams } from "react-router-dom";
 import {
   AlarmClock, Calendar, CircleCheck, ClipboardList, Filter, Gauge, History, Pencil, Plus, Receipt, ShieldCheck,
-  TrendingUp, Truck, Wrench,
+  TrendingUp, Truck, Wallet, Wrench, X,
 } from "lucide-react";
 
 import { get, query } from "../../api/client";
@@ -48,8 +48,15 @@ export default function Historico() {
   const situacao = useCarregar(() => get(`/veiculos/${placa}/situacao`), [placa]);
   const ordens = useCarregar(() => get(`/ordens-servico${query({ veiculo: placa })}`), [placa]);
   const leituras = useCarregar(() => get(`/leituras-odometro${query({ veiculo: placa })}`), [placa]);
+  // Período do histórico (RF31): o filtro é feito pela API (?de=&ate=), e o custo vem somado de lá (RF30)
+  const [de, setDe] = useState("");
+  const [ate, setAte] = useState("");
+  const periodoInvalido = Boolean(de && ate && de > ate);
+  const noPeriodo = useCarregar(() => (periodoInvalido ? Promise.resolve(null)
+    : get(`/ordens-servico${query({ veiculo: placa, status: "CONCLUIDA", de, ate })}`)), [placa, de, ate, periodoInvalido]);
+  const custos = useCarregar(() => (periodoInvalido ? Promise.resolve(null)
+    : get(`/veiculos/${placa}/custos${query({ de, ate })}`)), [placa, de, ate, periodoInvalido]);
   const [servico, setServico] = useState("");
-  const [ano, setAno] = useState(String(new Date().getFullYear()));
   const [aba, setAba] = useState("MANUTENCOES");
   const [modal, setModal] = useState("");
   const [aviso, setAviso] = useState("");
@@ -59,11 +66,11 @@ export default function Historico() {
   const concluidas = useMemo(() => (ordens.dados || []).filter((o) => o.status === "CONCLUIDA")
     .sort((a, b) => b.data_conclusao.localeCompare(a.data_conclusao) || b.numero - a.numero), [ordens.dados]);
   const abertas = (ordens.dados || []).filter((o) => o.status === "ABERTA");
-  const anos = [...new Set(concluidas.map((o) => o.data_conclusao.slice(0, 4)))].sort().reverse();
   const servicos = [...new Set(concluidas.map((o) => (o.id_plano ? o.descricao.split(" — ")[0] : "Corretivas")))];
-  const exibidas = concluidas.filter((o) =>
-    (!ano || o.data_conclusao.startsWith(ano)) &&
-    (!servico || (servico === "Corretivas" ? !o.id_plano : o.id_plano && o.descricao.startsWith(servico))));
+  const exibidas = [...(noPeriodo.dados || [])]
+    .sort((a, b) => b.data_conclusao.localeCompare(a.data_conclusao) || b.numero - a.numero)
+    .filter((o) => !servico || (servico === "Corretivas" ? !o.id_plano : o.id_plano && o.descricao.startsWith(servico)));
+  const temPeriodo = Boolean(de || ate);
 
   const atualizar = (texto) => {
     setModal("");
@@ -71,6 +78,7 @@ export default function Historico() {
     veiculo.recarregar();
     situacao.recarregar();
     leituras.recarregar();
+    custos.recarregar();
     todos.recarregar();
     recarregarPainel();
   };
@@ -120,6 +128,10 @@ export default function Historico() {
                   <span><CircleCheck size={13} aria-hidden="true" /> Total realizadas</span>
                   <strong>{plural(concluidas.length, "manutenção", "manutenções")}</strong>
                 </div>
+                <div className="mini-numero">
+                  <span><Wallet size={13} aria-hidden="true" /> Custo acumulado</span>
+                  <strong>{custos.dados ? dinheiro(custos.dados.total_geral) : "—"}</strong>
+                </div>
               </div>
               <div className="veiculo-topo__acoes">
                 <Botao variante="suave" tamanho="p" icone={Gauge} onClick={() => setModal("leitura")}>Registrar km</Botao>
@@ -135,13 +147,19 @@ export default function Historico() {
                   {servicos.map((s) => <option key={s} value={s}>{s}</option>)}
                 </select>
               </div>
-              <div className="campo__caixa campo__caixa--select">
-                <select className="campo__entrada" aria-label="Ano" value={ano} onChange={(e) => setAno(e.target.value)}>
-                  <option value={String(new Date().getFullYear())}>Ano atual ({new Date().getFullYear()})</option>
-                  {anos.filter((a) => a !== String(new Date().getFullYear())).map((a) => <option key={a} value={a}>{a}</option>)}
-                  <option value="">Todos os anos</option>
-                </select>
+              <label className="texto--suave texto--p" htmlFor="periodo-de">De</label>
+              <div className="campo__caixa">
+                <input id="periodo-de" type="date" className="campo__entrada" value={de} max={ate || undefined}
+                  onChange={(e) => setDe(e.target.value)} />
               </div>
+              <label className="texto--suave texto--p" htmlFor="periodo-ate">até</label>
+              <div className="campo__caixa">
+                <input id="periodo-ate" type="date" className="campo__entrada" value={ate} min={de || undefined}
+                  onChange={(e) => setAte(e.target.value)} />
+              </div>
+              {temPeriodo && (
+                <Botao variante="icone" icone={X} aria-label="Limpar período" onClick={() => { setDe(""); setAte(""); }} />
+              )}
               <BotaoLink to={`/manutencoes/nova?veiculo=${placa}`} icone={Plus} className="barra-filtros__direita">
                 Nova manutenção para este veículo
               </BotaoLink>
@@ -152,16 +170,20 @@ export default function Historico() {
                 <div className="linha-tempo__topo">
                   <h2 className="secao__titulo">Linha do Tempo Operacional</h2>
                   <span className="chip-suave">{plural(exibidas.length, "registro exibido", "registros exibidos")}</span>
+                  {temPeriodo && custos.dados && (
+                    <span className="chip-suave"><Wallet size={13} aria-hidden="true" /> Gasto no período: {dinheiro(custos.dados.total)}</span>
+                  )}
                   <span className="texto--suave texto--p">Mais recente para a mais antiga</span>
                 </div>
                 <Segmentado rotulo="Registros" valor={aba} aoMudar={setAba} opcoes={[
                   { id: "MANUTENCOES", rotulo: "Manutenções", icone: Wrench },
                   { id: "LEITURAS", rotulo: "Leituras do odômetro", icone: Gauge },
                 ]} />
+                {periodoInvalido && <Aviso tipo="erro">A data final não pode ser antes da inicial.</Aviso>}
                 {aba === "MANUTENCOES" ? (
-                  <Conteudo carregando={ordens.carregando && !ordens.dados} erro={ordens.erro}>
+                  <Conteudo carregando={noPeriodo.carregando && !noPeriodo.dados} erro={noPeriodo.erro}>
                     {exibidas.length === 0 ? (
-                      <div className="cartao"><Vazio icone={History} titulo="Nenhuma manutenção realizada neste filtro." /></div>
+                      <div className="cartao"><Vazio icone={History} titulo={temPeriodo ? "Nenhuma manutenção realizada neste período." : "Nenhuma manutenção realizada neste filtro."} /></div>
                     ) : (
                       <ol className="linha-tempo">
                         {exibidas.map((o, i) => (

@@ -270,11 +270,14 @@ class CheckinSerializer(serializers.ModelSerializer):
     quilometragem = serializers.IntegerField(write_only=True, min_value=0)
     email_usuario = serializers.CharField(source="usuario_id", read_only=True)
     codigo_leitura = serializers.IntegerField(source="leitura_id", read_only=True)
+    # Para a tela "Ocorrências" do gestor: quem fez e a km informada (vem da leitura gerada)
+    nome_usuario = serializers.CharField(source="usuario.nome_exibicao", read_only=True)
+    km_informado = serializers.IntegerField(source="leitura.quilometragem", read_only=True)
 
     class Meta:
         model = Checkin
         fields = ["id_checkin", "placa_veiculo", "data_checkin", "estado_geral", "observacao",
-                  "quilometragem", "email_usuario", "codigo_leitura"]
+                  "quilometragem", "email_usuario", "codigo_leitura", "nome_usuario", "km_informado"]
         read_only_fields = ["data_checkin"]
 
     def validate(self, dados):
@@ -387,6 +390,18 @@ class SituacaoVeiculoSerializer(serializers.Serializer):
     km_atual = serializers.IntegerField(allow_null=True)
     situacao = serializers.ChoiceField(choices=SituacaoManutencao.choices, help_text="A pior entre os planos.")
     planos = SituacaoPlanoSerializer(many=True)
+
+
+class CustoVeiculoSerializer(serializers.Serializer):
+    """Resposta de GET /veiculos/{placa}/custos (RF30)."""
+
+    placa = serializers.CharField()
+    de = serializers.DateField(allow_null=True)
+    ate = serializers.DateField(allow_null=True)
+    total = serializers.DecimalField(max_digits=12, decimal_places=2, help_text="Gasto no período pedido")
+    quantidade = serializers.IntegerField(help_text="Ordens concluídas no período")
+    total_geral = serializers.DecimalField(max_digits=12, decimal_places=2, help_text="Gasto desde o início")
+    quantidade_geral = serializers.IntegerField(help_text="Ordens concluídas desde o início")
 
 
 class AvisoSerializer(SituacaoPlanoSerializer):

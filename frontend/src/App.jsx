@@ -9,11 +9,14 @@ import { Carregando } from "./components/ui";
 import LayoutGestor from "./layouts/LayoutGestor";
 import LayoutMotorista from "./layouts/LayoutMotorista";
 import CriarConta from "./pages/CriarConta";
+import EsqueciSenha from "./pages/EsqueciSenha";
 import Login from "./pages/Login";
+import RedefinirSenha from "./pages/RedefinirSenha";
 import Perfil from "./pages/Perfil";
 import Historico, { HistoricoInicio } from "./pages/gestor/Historico";
 import Lembretes from "./pages/gestor/Lembretes";
 import Manutencoes from "./pages/gestor/Manutencoes";
+import Ocorrencias from "./pages/gestor/Ocorrencias";
 import MotoristaForm from "./pages/gestor/MotoristaForm";
 import Motoristas from "./pages/gestor/Motoristas";
 import OrdemDetalhe from "./pages/gestor/OrdemDetalhe";
@@ -52,6 +55,8 @@ export default function App() {
       <Route path="/" element={<Inicio />} />
       <Route path="/login" element={<SoDeslogado><Login /></SoDeslogado>} />
       <Route path="/criar-conta" element={<SoDeslogado><CriarConta /></SoDeslogado>} />
+      <Route path="/esqueci-senha" element={<SoDeslogado><EsqueciSenha /></SoDeslogado>} />
+      <Route path="/redefinir-senha" element={<RedefinirSenha />} />
 
       {/* Área do gestor: acesso completo */}
       <Route element={<ExigePerfil perfil="GESTOR"><LayoutGestor /></ExigePerfil>}>
@@ -64,6 +69,7 @@ export default function App() {
         <Route path="/historico" element={<HistoricoInicio />} />
         <Route path="/historico/:placa" element={<Historico />} />
         <Route path="/ordens/:numero" element={<OrdemDetalhe />} />
+        <Route path="/ocorrencias" element={<Ocorrencias />} />
         <Route path="/motoristas" element={<Motoristas />} />
         <Route path="/motoristas/novo" element={<MotoristaForm />} />
         <Route path="/motoristas/:cpf" element={<MotoristaForm />} />

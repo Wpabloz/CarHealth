@@ -107,7 +107,34 @@ REST_FRAMEWORK = {
     "DEFAULT_RENDERER_CLASSES": ["rest_framework.renderers.JSONRenderer"],
     "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
     "EXCEPTION_HANDLER": "carhealth.erros.tratar_erros",
+    # Limite de tentativas nas rotas públicas (contas/limites.py): protege contra quem tenta
+    # adivinhar senhas ou dispara e-mails sem parar. Passou do limite, a API responde 429.
+    "DEFAULT_THROTTLE_RATES": {
+        "login": os.getenv("LIMITE_LOGIN", "10/min"),
+        "senha": os.getenv("LIMITE_RECUPERAR_SENHA", "5/hour"),
+    },
 }
+
+# ---------------------------------------------------------------------------
+# Recuperação de senha ("Esqueci minha senha")
+# O link enviado por e-mail abre a tela /redefinir-senha do frontend e vale por 1 hora.
+# Sem servidor de e-mail configurado (EMAIL_HOST vazio), a mensagem é escrita no terminal
+# (ou nos Logs do Render), o que basta para testar e demonstrar.
+# ---------------------------------------------------------------------------
+# No Render (RENDER_EXTERNAL_HOSTNAME existe), o padrão é o site publicado no Vercel
+FRONTEND_URL = os.getenv(
+    "FRONTEND_URL",
+    "https://car-health-iota.vercel.app" if os.getenv("RENDER_EXTERNAL_HOSTNAME") else "http://localhost:5173",
+).rstrip("/")
+PASSWORD_RESET_TIMEOUT = int(os.getenv("LINK_SENHA_VALIDADE_SEGUNDOS", "3600"))
+EMAIL_HOST = os.getenv("EMAIL_HOST", "")
+EMAIL_BACKEND = ("django.core.mail.backends.smtp.EmailBackend" if EMAIL_HOST
+                 else "django.core.mail.backends.console.EmailBackend")
+EMAIL_PORT = int(os.getenv("EMAIL_PORT", "587"))
+EMAIL_HOST_USER = os.getenv("EMAIL_HOST_USER", "")
+EMAIL_HOST_PASSWORD = os.getenv("EMAIL_HOST_PASSWORD", "")
+EMAIL_USE_TLS = os.getenv("EMAIL_USE_TLS", "True") == "True"
+DEFAULT_FROM_EMAIL = os.getenv("EMAIL_REMETENTE", EMAIL_HOST_USER or "CarHealth <nao-responda@carhealth.app>")
 
 # Sessão (RF02): sem uso por esse tempo, a sessão expira e é preciso entrar de novo
 SESSAO_INATIVIDADE_MINUTOS = int(os.getenv("SESSAO_INATIVIDADE_MINUTOS", "30"))

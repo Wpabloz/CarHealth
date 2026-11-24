@@ -30,3 +30,11 @@ services:
         sync: false
       - key: CORS_ALLOWED_ORIGINS    # endereço do site no Vercel, ex.: https://carhealth.vercel.app
         sync: false
+      - key: FRONTEND_URL            # usado no link do "Esqueci minha senha"
+        value: https://car-health-iota.vercel.app
+      - key: EMAIL_HOST              # vazio = o e-mail sai nos Logs do Render; ex.: smtp.gmail.com
+        sync: false
+      - key: EMAIL_HOST_USER
+        sync: false
+      - key: EMAIL_HOST_PASSWORD     # "senha de app" do Gmail
+        sync: false

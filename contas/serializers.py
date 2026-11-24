@@ -12,6 +12,7 @@ from rest_framework.validators import UniqueValidator
 from frota.models import Motorista
 
 from .models import Empresa, Usuario
+from .recuperar_senha import usuario_do_link
 from .sessao import revogar_sessoes
 
 
@@ -169,3 +170,32 @@ class RegistrarSerializer(serializers.Serializer):
             empresa=empresa,
             perfil=Usuario.Perfil.GESTOR,
         )
+
+
+class EsqueciSenhaSerializer(serializers.Serializer):
+    """POST /auth/esqueci-senha: o e-mail da conta que vai receber o link."""
+
+    email = serializers.EmailField()
+
+    def validate_email(self, valor):
+        return valor.strip().lower()
+
+
+class RedefinirSenhaSerializer(serializers.Serializer):
+    """POST /auth/redefinir-senha: uid e token vêm do link do e-mail; nova_senha segue as regras de senha forte."""
+
+    uid = serializers.CharField()
+    token = serializers.CharField()
+    nova_senha = serializers.CharField(write_only=True)
+
+    def validate(self, dados):
+        usuario = usuario_do_link(dados["uid"], dados["token"])
+        if usuario is None:
+            raise serializers.ValidationError(
+                {"token": "Este link é inválido ou expirou. Peça um novo em \"Esqueci minha senha\"."})
+        try:
+            validate_password(dados["nova_senha"], usuario)
+        except ErroDjango as erro:
+            raise serializers.ValidationError({"nova_senha": list(erro.messages)}) from erro
+        dados["usuario"] = usuario
+        return dados
